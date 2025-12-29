@@ -10,11 +10,28 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  function onSubmit(e: React.FormEvent) {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    try{
+      const res = await fetch("http://localhost:8080/login", 
+        { method: "POST", 
+        headers: { "Content-Type": "application/json" }, 
+        credentials: "include", // REQUIRED 
+        body: JSON.stringify({ username: email, password }), });
+      if(!res.ok){
+        const msg = await res.text();
+        throw new Error(msg || "Failed to login");
+      }
+      const token = await res.text();
+      localStorage.setItem("accessToken", token);
+      router.push("/dashboard");
+    } catch (error) {
+      alert("invalid login");
+    }
 
-    // UI-only: later replace with API call to Spring Boot.
-    router.push("/dashboard");
+
+
+    
   }
 
   return (
@@ -89,8 +106,8 @@ export default function LoginPage() {
                   </label>
                   <input
                     id="email"
-                    type="email"
-                    autoComplete="email"
+                    type="text"
+                    autoComplete="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="you@example.com"

@@ -1,7 +1,13 @@
-import Link from "next/link";
+import Navbar from "@/components/Navbar";
+import AuthGuard from "@/components/AuthGuard";
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+export default function AppLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
+     <AuthGuard>
     <main className="min-h-screen bg-slate-50">
       <header className="border-b border-slate-200 bg-white">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
@@ -10,24 +16,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-slate-600">Demo mode</p>
           </div>
 
-          <nav className="flex items-center gap-2">
-            <Link href="/dashboard" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-              Dashboard
-            </Link>
-            <Link href="/transactions" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-              Transactions
-            </Link>
-            <Link href="/budgets" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-              Budgets
-            </Link>
-            <Link href="/settings" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-              Settings
-            </Link>
-          </nav>
+          <Navbar />
         </div>
       </header>
 
       <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
     </main>
+    {children}</AuthGuard>
   );
 }
