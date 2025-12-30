@@ -21,16 +21,16 @@ export default function DashboardPage() {
   const monthLabel = "December 2025";
 
   const totals = {
-    income: 4200,
-    expenses: 2785.43,
-    savings: 1414.57,
+    income: 0,
+    expenses: 0,
+    savings: 0,
   };
 
   const budgets = [
-    { category: "Groceries", limit: 450, spent: 392.15 },
-    { category: "Dining", limit: 250, spent: 311.9 },
-    { category: "Gas", limit: 220, spent: 146.23 },
-    { category: "Subscriptions", limit: 75, spent: 62.99 },
+    { category: "Groceries", limit: 0, spent: 0 },
+    { category: "Dining", limit: 0, spent: 0 },
+    { category: "Gas", limit: 0, spent: 146.23 },
+    { category: "Subscriptions", limit: 0, spent: 0 },
   ];
 
   const recent: Tx[] = [
@@ -93,9 +93,9 @@ export default function DashboardPage() {
           <p className="text-sm text-slate-600">Quick things to watch</p>
 
           <div className="mt-4 space-y-3">
-            <Insight title="Dining is over budget" detail="You’re 25% over your dining limit. Consider reducing eating out for the rest of the month." />
-            <Insight title="Groceries are on track" detail="Groceries are at 87% of budget with a few days left. Keep it tight." />
-            <Insight title="Subscriptions look stable" detail="Subscriptions are predictable—good candidate for annual review." />
+            <Insight title="insight 1" detail="information here" />
+            <Insight title="insight 1" detail="information here" />
+            <Insight title="insight 1" detail="information here" />
           </div>
         </div>
       </section>

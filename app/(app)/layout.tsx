@@ -22,6 +22,6 @@ export default function AppLayout({
 
       <div className="mx-auto max-w-6xl px-4 py-8">{children}</div>
     </main>
-    {children}</AuthGuard>
+    </AuthGuard>
   );
 }

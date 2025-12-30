@@ -1,11 +1,10 @@
 export type Tx = {
   id: string;
   date: string; // YYYY-MM-DD
-  merchant: string;
-  category: string;
+  description: string;
+  bucket: string;
   account: string;
   amount: number; // negative = expense, positive = income
-  note?: string;
 };
 
 export type Filters = {

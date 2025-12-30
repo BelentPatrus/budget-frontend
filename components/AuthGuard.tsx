@@ -1,18 +1,20 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-
-const PUBLIC_ROUTES = ["/login", "/register"];
+import { usePathname, useRouter } from "next/navigation";
+import { AuthContext, User } from "./AuthContext";
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [ready, setReady] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
-    if (PUBLIC_ROUTES.includes(pathname)) {
-      setReady(true);
+    // ✅ never guard public pages
+    if (pathname === "/login" || pathname === "/register") {
+      setOk(true);
+      setUser(null)
       return;
     }
 
@@ -21,15 +23,22 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         credentials: "include",
       });
 
-      if (!res.ok) {
+      if (res.status === 401 || res.status === 403) {
+        setUser(null);
         router.replace("/login");
         return;
       }
-
-      setReady(true);
+      const data: User = await res.json();
+      setUser(data)
+      setOk(true);
     })();
   }, [pathname, router]);
 
-  if (!ready) return null;
-  return <>{children}</>;
+  if (!ok) return null;
+  // ✅ provide user to Navbar (and anything else)
+  return (
+    <AuthContext.Provider value={{ user }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }

@@ -23,12 +23,13 @@ export function TransactionsTable(props: {
           <thead className="bg-slate-50 text-slate-600">
             <tr>
               <th className="px-4 py-3 font-medium">Date</th>
-              <th className="px-4 py-3 font-medium">Merchant</th>
-              <th className="px-4 py-3 font-medium">Category</th>
+              <th className="px-4 py-3 font-medium">Description</th>
+              <th className="px-4 py-3 font-medium">Bucket</th>
               <th className="px-4 py-3 font-medium">Account</th>
-              <th className="px-4 py-3 font-medium">Note</th>
               <th className="px-4 py-3 text-right font-medium">Amount</th>
-              <th className="px-4 py-3 text-right font-medium">Actions</th>
+              <th className="px-4 py-3 text-sm font-medium text-slate-600 text-center">
+  Actions
+</th>
             </tr>
           </thead>
 
@@ -36,15 +37,14 @@ export function TransactionsTable(props: {
             {rows.map((t) => (
               <tr key={t.id} className="bg-white">
                 <td className="px-4 py-3 text-slate-700">{formatDate(t.date)}</td>
-                <td className="px-4 py-3 text-slate-900">{t.merchant}</td>
-                <td className="px-4 py-3 text-slate-700">{t.category}</td>
+                <td className="px-4 py-3 text-slate-900">{t.description}</td>
+                <td className="px-4 py-3 text-slate-700">{t.bucket}</td>
                 <td className="px-4 py-3 text-slate-700">{t.account}</td>
-                <td className="px-4 py-3 text-slate-700">{t.note ?? "—"}</td>
                 <td className={`px-4 py-3 text-right font-semibold ${t.amount < 0 ? "text-slate-900" : "text-emerald-700"}`}>
                   {formatMoney(t.amount)}
                 </td>
-                <td className="px-4 py-3">
-                  <div className="flex justify-end gap-2">
+                <td className="px-4 py-3 text-center">
+                  <div className="flex justify-center gap-2">
                     <button
                       onClick={() => onEdit(t)}
                       className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"

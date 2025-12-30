@@ -5,15 +5,17 @@ import { TransactionsFilters } from "@/features/transactions/TransactionsFilters
 import { TransactionsTable } from "@/features/transactions/TransactionsTable";
 import { TransactionModal } from "@/features/transactions/TransactionModal";
 import type { Filters, ModalMode, Tx } from "@/features/transactions/types";
-import { seedTransactions } from "@/features/transactions/seed";
+// import { seedTransactions } from "@/features/transactions/seed";
 import { blankForm, formToSignedAmount, monthKey, txToForm, formatMoney } from "@/features/transactions/utils";
 import { loadSettings } from "@/features/settings/storage";
 import type { SettingsData } from "@/features/settings/storage";
-
+import { fetchTransactions } from "@/features/transactions/api";
 
 
 export default function TransactionsPage() {
-  const [txs, setTxs] = useState<Tx[]>(seedTransactions);
+  const [txs, setTxs] = useState<Tx[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [filters, setFilters] = useState<Filters>({
     q: "",
@@ -29,11 +31,35 @@ export default function TransactionsPage() {
   const [settings, setSettings] = useState<SettingsData>({ categories: [], accounts: [] });
 
   useEffect(() => {
-    setSettings(loadSettings());
-  }, []);
+  setSettings(loadSettings());
 
+  let alive = true;
+
+  (async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const data = await fetchTransactions(); // DB call
+      if (!alive) return;
+
+      console.log("transactions response:", data);
+      setTxs(data);
+    } catch (e: any) {
+      if (!alive) return;
+      setError(e?.message ?? "Failed to load transactions");
+    } finally {
+      if (!alive) return;
+      setLoading(false);
+    }
+  })();
+
+  return () => {
+    alive = false;
+  };
+}, []);
   const categories = useMemo(() => {
-    const set = new Set(txs.map((t) => t.category));
+    const set = new Set(txs.map((t) => t.bucket));
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
   }, [txs]);
 
@@ -52,16 +78,15 @@ export default function TransactionsPage() {
     const query = filters.q.trim().toLowerCase();
 
     return txs
-      .filter((t) => (filters.category === "All" ? true : t.category === filters.category))
+      .filter((t) => (filters.category === "All" ? true : t.bucket === filters.category))
       .filter((t) => (filters.account === "All" ? true : t.account === filters.account))
       .filter((t) => (filters.month === "All" ? true : monthKey(t.date) === filters.month))
       .filter((t) => {
         if (!query) return true;
         return (
-          t.merchant.toLowerCase().includes(query) ||
-          t.category.toLowerCase().includes(query) ||
+          t.description.toLowerCase().includes(query) ||
+          t.bucket.toLowerCase().includes(query) ||
           t.account.toLowerCase().includes(query) ||
-          (t.note ?? "").toLowerCase().includes(query) ||
           t.date.includes(query)
         );
       })
@@ -113,11 +138,10 @@ export default function TransactionsPage() {
       const newTx: Tx = {
         id: crypto.randomUUID(),
         date: form.date,
-        merchant,
-        category: form.category,
+        description: form.merchant,
+        bucket: form.category,
         account: form.account,
         amount: signed,
-        note,
       };
       setTxs((prev) => [newTx, ...prev]);
       setModalOpen(false);
@@ -137,13 +161,14 @@ export default function TransactionsPage() {
   }
 
   function onDelete(t: Tx) {
-    const ok = confirm(`Delete transaction?\n\n${t.merchant} • ${formatMoney(t.amount)} • ${t.date}`);
+    const ok = confirm(`Delete transaction?\n\n${t.description} • ${formatMoney(t.amount)} • ${t.date}`);
     if (!ok) return;
     setTxs((prev) => prev.filter((x) => x.id !== t.id));
   }
 
 
-
+  if (loading) return <div className="p-6">Loading transactions…</div>;
+  if (error) return <div className="p-6 text-red-600">{error}</div>;
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
