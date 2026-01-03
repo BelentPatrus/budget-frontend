@@ -45,8 +45,8 @@ export function TransactionsFilters(props: {
         <div>
           <label className="text-sm font-medium text-slate-700">Category</label>
           <select
-            value={filters.category}
-            onChange={(e) => onChange({ ...filters, category: e.target.value })}
+            value={filters.description}
+            onChange={(e) => onChange({ ...filters, description: e.target.value })}
             className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
           >
             {categories.map((c) => (

@@ -6,10 +6,10 @@ import { TransactionsTable } from "@/features/transactions/TransactionsTable";
 import { TransactionModal } from "@/features/transactions/TransactionModal";
 import type { Filters, ModalMode, Tx } from "@/features/transactions/types";
 // import { seedTransactions } from "@/features/transactions/seed";
-import { blankForm, formToSignedAmount, monthKey, txToForm, formatMoney } from "@/features/transactions/utils";
+import { blankForm, formToSignedAmount, monthKey, txToForm, formatMoney, CreateTx } from "@/features/transactions/utils";
 import { loadSettings } from "@/features/settings/storage";
 import type { SettingsData } from "@/features/settings/storage";
-import { fetchTransactions } from "@/features/transactions/api";
+import { fetchTransactions, deleteTransaction, addTransaction } from "@/features/transactions/api";
 
 
 export default function TransactionsPage() {
@@ -19,7 +19,8 @@ export default function TransactionsPage() {
 
   const [filters, setFilters] = useState<Filters>({
     q: "",
-    category: "All",
+    description: "",
+    bucket: "All",
     account: "All",
     month: "All",
   });
@@ -31,33 +32,33 @@ export default function TransactionsPage() {
   const [settings, setSettings] = useState<SettingsData>({ categories: [], accounts: [] });
 
   useEffect(() => {
-  setSettings(loadSettings());
+    setSettings(loadSettings());
 
-  let alive = true;
+    let alive = true;
 
-  (async () => {
-    try {
-      setLoading(true);
-      setError(null);
+    (async () => {
+      try {
+        setLoading(true);
+        setError(null);
 
-      const data = await fetchTransactions(); // DB call
-      if (!alive) return;
+        const data = await fetchTransactions(); // DB call
+        if (!alive) return;
 
-      console.log("transactions response:", data);
-      setTxs(data);
-    } catch (e: any) {
-      if (!alive) return;
-      setError(e?.message ?? "Failed to load transactions");
-    } finally {
-      if (!alive) return;
-      setLoading(false);
-    }
-  })();
+        console.log("transactions response:", data);
+        setTxs(data);
+      } catch (e: any) {
+        if (!alive) return;
+        setError(e?.message ?? "Failed to load transactions");
+      } finally {
+        if (!alive) return;
+        setLoading(false);
+      }
+    })();
 
-  return () => {
-    alive = false;
-  };
-}, []);
+    return () => {
+      alive = false;
+    };
+  }, []);
   const categories = useMemo(() => {
     const set = new Set(txs.map((t) => t.bucket));
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
@@ -78,7 +79,7 @@ export default function TransactionsPage() {
     const query = filters.q.trim().toLowerCase();
 
     return txs
-      .filter((t) => (filters.category === "All" ? true : t.bucket === filters.category))
+      .filter((t) => (filters.bucket === "All" ? true : t.bucket === filters.bucket))
       .filter((t) => (filters.account === "All" ? true : t.account === filters.account))
       .filter((t) => (filters.month === "All" ? true : monthKey(t.date) === filters.month))
       .filter((t) => {
@@ -119,10 +120,10 @@ export default function TransactionsPage() {
   }
 
   function resetFilters() {
-    setFilters({ q: "", category: "All", account: "All", month: "All" });
+    setFilters({ q: "", description: "", bucket: "All", account: "All", month: "All" });
   }
 
-  function onSave(e: React.FormEvent) {
+  async function onSave(e: React.FormEvent) {
     e.preventDefault();
 
     const signed = formToSignedAmount(form.type, form.amount);
@@ -131,21 +132,25 @@ export default function TransactionsPage() {
       return;
     }
 
-    const merchant = form.merchant.trim() || "(No merchant)";
-    const note = form.note.trim() || undefined;
+
 
     if (mode === "add") {
-      const newTx: Tx = {
-        id: crypto.randomUUID(),
+      const payload: CreateTx = {
         date: form.date,
-        description: form.merchant,
-        bucket: form.category,
+        description: form.description,
+        bucket: form.bucket,
         account: form.account,
         amount: signed,
+        type: form.type,
       };
-      setTxs((prev) => [newTx, ...prev]);
-      setModalOpen(false);
-      return;
+      try {
+        const newTx = await addTransaction(payload);
+        setTxs((prev) => [newTx, ...prev]);
+        setModalOpen(false);
+        return;
+      } catch (e: any) {
+        alert(e?.message ?? "Failed to add transaction");
+      }
     }
 
     if (!editingId) return;
@@ -153,17 +158,25 @@ export default function TransactionsPage() {
     setTxs((prev) =>
       prev.map((t) =>
         t.id === editingId
-          ? { ...t, date: form.date, merchant, category: form.category, account: form.account, amount: signed, note }
+          ? { ...t, date: form.date, bucket: form.bucket, account: form.account, amount: signed }
           : t
       )
     );
     setModalOpen(false);
   }
 
-  function onDelete(t: Tx) {
+  async function onDelete(t: Tx) {
     const ok = confirm(`Delete transaction?\n\n${t.description} • ${formatMoney(t.amount)} • ${t.date}`);
     if (!ok) return;
-    setTxs((prev) => prev.filter((x) => x.id !== t.id));
+
+    try {
+      await deleteTransaction(t.id);
+      setTxs((prev) => prev.filter((x) => x.id !== t.id));
+
+    } catch (e: any) {
+      alert(e?.message ?? "Failed to delete transaction");
+    }
+
   }
 
 

@@ -72,10 +72,10 @@ export function TransactionModal(props: {
           </div>
 
           <div>
-            <label className="text-sm font-medium text-slate-700">Merchant</label>
+            <label className="text-sm font-medium text-slate-700">Description</label>
             <input
-              value={form.merchant}
-              onChange={(e) => onChange({ ...form, merchant: e.target.value })}
+              value={form.description}
+              onChange={(e) => onChange({ ...form, description: e.target.value })}
               placeholder="e.g., Loblaws, Shell, Paycheque..."
               className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
             />
@@ -83,10 +83,10 @@ export function TransactionModal(props: {
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div>
-              <label className="text-sm font-medium text-slate-700">Category</label>
+              <label className="text-sm font-medium text-slate-700">Bucket</label>
               <select
-                value={form.category}
-                onChange={(e) => onChange({ ...form, category: e.target.value })}
+                value={form.bucket}
+                onChange={(e) => onChange({ ...form, bucket: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
               >
                 {categories.map((c) => (
@@ -123,16 +123,6 @@ export function TransactionModal(props: {
               <p className="mt-1 text-xs text-slate-500">
                 Stored as {form.type === "expense" ? "negative (expense)" : "positive (income)"}.
               </p>
-            </div>
-
-            <div>
-              <label className="text-sm font-medium text-slate-700">Note (optional)</label>
-              <input
-                value={form.note}
-                onChange={(e) => onChange({ ...form, note: e.target.value })}
-                placeholder="Any extra detail..."
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
-              />
             </div>
           </div>
 

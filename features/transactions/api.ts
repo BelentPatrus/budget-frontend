@@ -1,4 +1,5 @@
 import type { Tx } from "./types";
+import { CreateTx } from "./utils";
 
 const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
@@ -35,4 +36,31 @@ export async function fetchTransactions(): Promise<Tx[]> {
 
   const arr = Array.isArray(data) ? data : [];
   return arr.map(toTx);
+}
+
+export async function deleteTransaction(id: string){
+  const res = await fetch(`${API_BASE}/transaction/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok){
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Failed to delete (HTTP ${res.status})`);
+  }
+}
+
+
+export async function addTransaction(transaction: CreateTx){
+  const res = await fetch(`${API_BASE}/transaction`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(transaction),
+  });
+  if (!res.ok){
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Failed to ADD (HTTP ${res.status})`);
+  }
+  const saved = await res.json();
+  return saved as Tx;
 }
