@@ -24,7 +24,6 @@ export function TransactionModal(props: {
             <h2 className="text-lg font-semibold text-slate-900">
               {mode === "add" ? "Add transaction" : "Edit transaction"}
             </h2>
-            <p className="text-sm text-slate-600">Local-only for now (no backend).</p>
           </div>
           <button onClick={onClose} className="rounded-lg px-2 py-1 text-slate-600 hover:bg-slate-100" aria-label="Close">
             ✕

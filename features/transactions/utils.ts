@@ -51,12 +51,17 @@ export function formToSignedAmount(type: "expense" | "income", amountStr: string
 }
 
 export type CreateTx = {
+  id: string,
   date: string;
   description: string;
   bucket: string;
   account: string;
   amount: number;
-  type: string;
+  incomeOrExpense: string;
 };
+
+export type Bucket = {
+  name: string;
+}
 
 

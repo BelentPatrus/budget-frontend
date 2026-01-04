@@ -29,10 +29,12 @@ export default function TransactionsPage() {
   const [mode, setMode] = useState<ModalMode>("add");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm());
-  const [settings, setSettings] = useState<SettingsData>({ categories: [], accounts: [] });
+  const [settings, setSettings] = useState<SettingsData>({
+    buckets: [],
+    bankAccounts: [],
+  });
 
   useEffect(() => {
-    setSettings(loadSettings());
 
     let alive = true;
 
@@ -42,10 +44,13 @@ export default function TransactionsPage() {
         setError(null);
 
         const data = await fetchTransactions(); // DB call
+        const bucketSettings = await loadSettings()
         if (!alive) return;
 
         console.log("transactions response:", data);
         setTxs(data);
+        console.log("setting response:", bucketSettings);
+        setSettings(bucketSettings);
       } catch (e: any) {
         if (!alive) return;
         setError(e?.message ?? "Failed to load transactions");
@@ -136,15 +141,24 @@ export default function TransactionsPage() {
 
     if (mode === "add") {
       const payload: CreateTx = {
+        id: "",
         date: form.date,
         description: form.description,
         bucket: form.bucket,
         account: form.account,
         amount: signed,
-        type: form.type,
+        incomeOrExpense: form.type,
       };
       try {
-        const newTx = await addTransaction(payload);
+        const result = await addTransaction(payload);
+        const newTx: Tx = {
+          id: result.id,
+          date: form.date,
+          description: form.description,
+          bucket: form.bucket,
+          account: form.account,
+          amount: signed,
+        };
         setTxs((prev) => [newTx, ...prev]);
         setModalOpen(false);
         return;
@@ -214,8 +228,8 @@ export default function TransactionsPage() {
         open={modalOpen}
         mode={mode}
         form={form}
-        categories={settings.categories.length ? settings.categories : categories.filter((c) => c !== "All")}
-        accounts={settings.accounts.length ? settings.accounts : accounts.filter((a) => a !== "All")}
+        categories={settings.buckets.length ? settings.buckets : categories.filter((c) => c !== "All")}
+        accounts={settings.bankAccounts.length ? settings.bankAccounts : accounts.filter((a) => a !== "All")}
         onChange={setForm}
         onClose={closeModal}
         onSave={onSave}
