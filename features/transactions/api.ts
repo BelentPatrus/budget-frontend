@@ -106,4 +106,23 @@ export async function loadBankAccounts(): Promise<string[]> {
   return arr.map(toName).filter(Boolean);
 }
 
+export async function uploadTransactions(file: File) {
+  const fd = new FormData();
+  fd.append("file", file);
+
+  const res = await fetch(`${API_BASE}/transactions/import`, {
+    method: "POST",
+    credentials: "include",
+    body: fd,
+  });
+
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Upload failed (HTTP ${res.status})`);
+  }
+
+  // backend may return parsed rows or summary
+  return res.json();
+}
+
 

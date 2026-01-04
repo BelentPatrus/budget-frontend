@@ -1,16 +1,26 @@
 "use client";
 
-import { useMemo, useState, useEffect } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TransactionsFilters } from "@/features/transactions/TransactionsFilters";
 import { TransactionsTable } from "@/features/transactions/TransactionsTable";
 import { TransactionModal } from "@/features/transactions/TransactionModal";
 import type { Filters, ModalMode, Tx } from "@/features/transactions/types";
-// import { seedTransactions } from "@/features/transactions/seed";
-import { blankForm, formToSignedAmount, monthKey, txToForm, formatMoney, CreateTx } from "@/features/transactions/utils";
+import {
+  blankForm,
+  formToSignedAmount,
+  monthKey,
+  txToForm,
+  formatMoney,
+  type CreateTx,
+} from "@/features/transactions/utils";
 import { loadSettings } from "@/features/settings/storage";
 import type { SettingsData } from "@/features/settings/storage";
-import { fetchTransactions, deleteTransaction, addTransaction } from "@/features/transactions/api";
-
+import {
+  fetchTransactions,
+  deleteTransaction,
+  addTransaction,
+  uploadTransactions,
+} from "@/features/transactions/api";
 
 export default function TransactionsPage() {
   const [txs, setTxs] = useState<Tx[]>([]);
@@ -29,13 +39,18 @@ export default function TransactionsPage() {
   const [mode, setMode] = useState<ModalMode>("add");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(blankForm());
+
   const [settings, setSettings] = useState<SettingsData>({
     buckets: [],
     bankAccounts: [],
   });
 
-  useEffect(() => {
+  // Upload state + hidden input
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [uploading, setUploading] = useState(false);
 
+  // initial load
+  useEffect(() => {
     let alive = true;
 
     (async () => {
@@ -43,13 +58,14 @@ export default function TransactionsPage() {
         setLoading(true);
         setError(null);
 
-        const data = await fetchTransactions(); // DB call
-        const bucketSettings = await loadSettings()
+        const [data, bucketSettings] = await Promise.all([
+          fetchTransactions(),
+          loadSettings(),
+        ]);
+
         if (!alive) return;
 
-        console.log("transactions response:", data);
         setTxs(data);
-        console.log("setting response:", bucketSettings);
         setSettings(bucketSettings);
       } catch (e: any) {
         if (!alive) return;
@@ -64,6 +80,8 @@ export default function TransactionsPage() {
       alive = false;
     };
   }, []);
+
+  // dropdown data
   const categories = useMemo(() => {
     const set = new Set(txs.map((t) => t.bucket));
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
@@ -80,6 +98,7 @@ export default function TransactionsPage() {
     return ["All", ...arr];
   }, [txs]);
 
+  // filtered list
   const filtered = useMemo(() => {
     const query = filters.q.trim().toLowerCase();
 
@@ -99,6 +118,7 @@ export default function TransactionsPage() {
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [txs, filters]);
 
+  // summary cards
   const summary = useMemo(() => {
     const income = filtered.reduce((s, t) => s + (t.amount > 0 ? t.amount : 0), 0);
     const expenses = filtered.reduce((s, t) => s + (t.amount < 0 ? -t.amount : 0), 0);
@@ -106,6 +126,7 @@ export default function TransactionsPage() {
     return { income, expenses, net };
   }, [filtered]);
 
+  // modal helpers
   function openAdd() {
     setMode("add");
     setEditingId(null);
@@ -137,8 +158,6 @@ export default function TransactionsPage() {
       return;
     }
 
-
-
     if (mode === "add") {
       const payload: CreateTx = {
         id: "",
@@ -149,8 +168,10 @@ export default function TransactionsPage() {
         amount: signed,
         incomeOrExpense: form.type,
       };
+
       try {
         const result = await addTransaction(payload);
+
         const newTx: Tx = {
           id: result.id,
           date: form.date,
@@ -159,20 +180,30 @@ export default function TransactionsPage() {
           account: form.account,
           amount: signed,
         };
+
         setTxs((prev) => [newTx, ...prev]);
         setModalOpen(false);
         return;
       } catch (e: any) {
         alert(e?.message ?? "Failed to add transaction");
+        return;
       }
     }
 
     if (!editingId) return;
 
+    // TODO: call backend update endpoint when you add it
     setTxs((prev) =>
       prev.map((t) =>
         t.id === editingId
-          ? { ...t, date: form.date, bucket: form.bucket, account: form.account, amount: signed }
+          ? {
+            ...t,
+            date: form.date,
+            description: form.description,
+            bucket: form.bucket,
+            account: form.account,
+            amount: signed,
+          }
           : t
       )
     );
@@ -186,30 +217,80 @@ export default function TransactionsPage() {
     try {
       await deleteTransaction(t.id);
       setTxs((prev) => prev.filter((x) => x.id !== t.id));
-
     } catch (e: any) {
       alert(e?.message ?? "Failed to delete transaction");
     }
-
   }
 
+  // -------- Upload handlers --------
+  function onUploadClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function onFileSelected(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // allow uploading same file again
+    e.target.value = "";
+
+    try {
+      setUploading(true);
+
+      // calls your api.ts function
+      await uploadTransactions(file);
+
+      // simplest behavior: refresh list from DB
+      const refreshed = await fetchTransactions();
+      setTxs(refreshed);
+
+      alert("Upload complete.");
+    } catch (err: any) {
+      alert(err?.message ?? "Failed to upload transactions");
+    } finally {
+      setUploading(false);
+    }
+  }
+  // --------------------------------
 
   if (loading) return <div className="p-6">Loading transactions…</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
+
   return (
     <div className="space-y-6">
+      {/* Hidden file input for Upload button */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".csv,.xls,.xlsx"
+        className="hidden"
+        onChange={onFileSelected}
+      />
+
       <header className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <h1 className="text-xl font-semibold text-slate-900">Transactions</h1>
           <p className="text-sm text-slate-600">Now refactored into components (easier to maintain).</p>
         </div>
 
-        <button
-          onClick={openAdd}
-          className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200"
-        >
-          + Add transaction
-        </button>
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <button
+            type="button"
+            onClick={onUploadClick}
+            disabled={uploading}
+            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {uploading ? "Uploading…" : "Upload transactions"}
+          </button>
+
+          <button
+            type="button"
+            onClick={openAdd}
+            className="rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white hover:bg-slate-800 focus:outline-none focus:ring-4 focus:ring-slate-200"
+          >
+            + Add transaction
+          </button>
+        </div>
       </header>
 
       <TransactionsFilters
