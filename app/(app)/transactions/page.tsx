@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { TransactionsFilters } from "@/features/transactions/TransactionsFilters";
 import { TransactionsTable } from "@/features/transactions/TransactionsTable";
+import { ImportReviewModal } from "@/features/transactions/ImportReviewModal";
 import { TransactionModal } from "@/features/transactions/TransactionModal";
 import type { Filters, ModalMode, Tx } from "@/features/transactions/types";
 import {
@@ -23,6 +24,7 @@ import {
 } from "@/features/transactions/api";
 
 export default function TransactionsPage() {
+  type ImportPreviewTx = { date: string; description: string; amount: number };
   const [txs, setTxs] = useState<Tx[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +50,9 @@ export default function TransactionsPage() {
   // Upload state + hidden input
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploading, setUploading] = useState(false);
+
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPreview, setImportPreview] = useState<ImportPreviewTx[]>([]);
 
   // initial load
   useEffect(() => {
@@ -223,6 +228,39 @@ export default function TransactionsPage() {
   }
 
   // -------- Upload handlers --------
+
+  async function commitImportedRow(row: {
+    date: string;
+    description: string;
+    bucket: string;
+    account: string;
+    amount: number;
+  }) {
+
+    const payload: CreateTx = {
+        id: "",
+        date: row.date,
+        description: row.description,
+        bucket: row.bucket,
+        account: row.account,
+        amount: row.amount,
+        incomeOrExpense: row.amount >= 0 ? "INCOME" : "EXPENSE",
+      };
+
+
+    
+
+    // OPTION A (fastest): reuse your existing addTransaction endpoint
+    // Assumes your backend accepts bucket/account by NAME (like you were doing Default bucketName)
+    await addTransaction(payload);
+
+    // then refresh list if you want:
+    // const fresh = await fetchTransactions(...)
+    // setTxs(fresh)
+  }
+
+
+
   function onUploadClick() {
     fileInputRef.current?.click();
   }
@@ -238,7 +276,9 @@ export default function TransactionsPage() {
       setUploading(true);
 
       // calls your api.ts function
-      await uploadTransactions(file);
+      const rows = await uploadTransactions(file);
+      setImportPreview(rows);
+      setImportOpen(true);
 
       // simplest behavior: refresh list from DB
       const refreshed = await fetchTransactions();
@@ -314,6 +354,15 @@ export default function TransactionsPage() {
         onChange={setForm}
         onClose={closeModal}
         onSave={onSave}
+      />
+
+      <ImportReviewModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        preview={importPreview}
+        buckets={settings.buckets}
+        accounts={accounts}
+        onCommitRow={commitImportedRow}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { Budget, BudgetModalMode, Tx } from "@/features/budgets/types";
+import type { Budget, BudgetModalMode, Tx, BudgetRuleType, ReleaseRule } from "@/features/budgets/types";
 import { seedBudgets, seedTxs } from "@/features/budgets/seed";
 import { clampPct, monthKey } from "@/features/budgets/utils";
 import { BudgetsHeader } from "@/features/budgets/BudgetsHeader";
@@ -9,9 +9,40 @@ import { BudgetsSummary } from "@/features/budgets/BudgetsSummary";
 import { BudgetsTable, type BudgetRow } from "@/features/budgets/BudgetsTable";
 import { BudgetModal } from "@/features/budgets/BudgetModal";
 
+// --- helpers ---
+function safeNumber(v: string) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function plannedBudgetForRule(rule: Budget, plannedIncome: number) {
+  if (rule.type === "FIXED") return rule.value;
+  // PERCENT (value is like 12.5 for 12.5%)
+  return plannedIncome * (rule.value / 100);
+}
+
+function availableBudgetForRule(rule: Budget, plannedBudget: number, incomeToDate: number) {
+  // NONE means “full amount available immediately”
+  if (rule.releaseRule === "NONE") return plannedBudget;
+
+  // LINEAR pacing:
+  // - Percent budgets pace with income received
+  // - Fixed budgets: default to full planned budget (unless you later add scheduled/front-loaded)
+  if (rule.type === "PERCENT") {
+    return incomeToDate * (rule.value / 100);
+  }
+
+  // FIXED + LINEAR: you can choose to pace fixed bills too,
+  // but IMO fixed bills usually should be NONE. For now: treat as full amount.
+  return plannedBudget;
+}
+
 export default function BudgetsPage() {
   const [txs] = useState<Tx[]>(seedTxs);
   const [budgets, setBudgets] = useState<Budget[]>(seedBudgets);
+
+  // New: planned income per month (simple local state for now)
+  const [plannedIncomeByMonth, setPlannedIncomeByMonth] = useState<Record<string, number>>({});
 
   const months = useMemo(() => {
     const set = new Set<string>();
@@ -23,14 +54,26 @@ export default function BudgetsPage() {
 
   const [selectedMonth, setSelectedMonth] = useState<string>(months[0] ?? new Date().toISOString().slice(0, 7));
 
+  const plannedIncome = plannedIncomeByMonth[selectedMonth] ?? 0;
+
   const categories = useMemo(() => {
     const set = new Set<string>();
+    // include expense categories from txs + any budget categories
     txs.forEach((t) => {
-      if (t.amount < 0) set.add(t.category); // expense categories
+      if (t.amount < 0) set.add(t.category);
     });
     budgets.forEach((b) => set.add(b.category));
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [txs, budgets]);
+
+  const incomeToDate = useMemo(() => {
+    let sum = 0;
+    for (const t of txs) {
+      if (monthKey(t.date) !== selectedMonth) continue;
+      if (t.amount > 0) sum += t.amount;
+    }
+    return sum;
+  }, [txs, selectedMonth]);
 
   const spentByCategory = useMemo(() => {
     const map = new Map<string, number>();
@@ -53,21 +96,59 @@ export default function BudgetsPage() {
   const rows: BudgetRow[] = useMemo(() => {
     return categories.map((cat) => {
       const spent = spentByCategory.get(cat) ?? 0;
-      const budget = budgetByCategory.get(cat)?.limit ?? 0;
+      const rule = budgetByCategory.get(cat);
 
-      const remaining = Math.max(0, budget - spent);
-      const over = budget > 0 ? Math.max(0, spent - budget) : 0;
-      const pct = budget > 0 ? clampPct((spent / budget) * 100) : 0;
+      if (!rule) {
+        return {
+          category: cat,
+          spent,
+          plannedBudget: 0,
+          availableBudget: 0,
+          remainingToDate: 0,
+          overToDate: 0,
+          pctToDate: 0,
+          pctPlan: 0,
+          hasBudget: false,
+        };
+      }
 
-      return { category: cat, spent, budget, remaining, pct, over, hasBudget: budget > 0 };
+      const plannedBudget = plannedBudgetForRule(rule, plannedIncome);
+      const availableBudget = availableBudgetForRule(rule, plannedBudget, incomeToDate);
+
+      const overToDate = availableBudget > 0 ? Math.max(0, spent - availableBudget) : 0;
+      const remainingToDate = availableBudget > 0 ? Math.max(0, availableBudget - spent) : 0;
+
+      const pctToDate = availableBudget > 0 ? clampPct((spent / availableBudget) * 100) : 0;
+      const pctPlan = plannedBudget > 0 ? clampPct((spent / plannedBudget) * 100) : 0;
+
+      return {
+        category: cat,
+        spent,
+        plannedBudget,
+        availableBudget,
+        remainingToDate,
+        overToDate,
+        pctToDate,
+        pctPlan,
+        hasBudget: true,
+      };
     });
-  }, [categories, spentByCategory, budgetByCategory]);
+  }, [categories, spentByCategory, budgetByCategory, plannedIncome, incomeToDate]);
 
+  // Totals — you can decide whether summary should be based on planned or to-date.
+  // IMO: show BOTH. For now, keep it simple: summary = total Available (to-date).
   const totals = useMemo(() => {
-    const totalBudget = budgetsForMonth.reduce((s, b) => s + b.limit, 0);
+    const totalAvailableToDate = rows.reduce((s, r) => s + (r.hasBudget ? r.availableBudget : 0), 0);
+    const totalPlanned = rows.reduce((s, r) => s + (r.hasBudget ? r.plannedBudget : 0), 0);
     const totalSpent = Array.from(spentByCategory.values()).reduce((s, v) => s + v, 0);
-    return { totalBudget, totalSpent, remaining: totalBudget - totalSpent };
-  }, [budgetsForMonth, spentByCategory]);
+
+    return {
+      totalBudget: totalAvailableToDate, // keep existing prop name used by BudgetsSummary
+      totalPlanned,
+      totalSpent,
+      remaining: totalAvailableToDate - totalSpent,
+    };
+  }, [rows, spentByCategory]);
 
   const unbudgeted = useMemo(() => {
     const items = categories
@@ -83,19 +164,26 @@ export default function BudgetsPage() {
     return { items, total };
   }, [categories, spentByCategory, budgetByCategory]);
 
-  // Modal state
+  // ---- Modal state (updated for new modal) ----
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<BudgetModalMode>("add");
   const [editingId, setEditingId] = useState<string | null>(null);
 
   const [fCategory, setFCategory] = useState<string>(categories[0] ?? "Groceries");
-  const [fLimit, setFLimit] = useState<string>("");
+
+  const [fRuleType, setFRuleType] = useState<BudgetRuleType>("PERCENT");
+  const [fPercent, setFPercent] = useState<string>(""); // "12.5"
+  const [fFixedAmount, setFFixedAmount] = useState<string>(""); // "500"
+  const [fReleaseRule, setFReleaseRule] = useState<ReleaseRule>("LINEAR");
 
   function openAdd() {
     setMode("add");
     setEditingId(null);
     setFCategory(categories[0] ?? "Groceries");
-    setFLimit("");
+    setFRuleType("PERCENT");
+    setFPercent("");
+    setFFixedAmount("");
+    setFReleaseRule("LINEAR");
     setOpen(true);
   }
 
@@ -103,7 +191,17 @@ export default function BudgetsPage() {
     setMode("edit");
     setEditingId(b.id);
     setFCategory(b.category);
-    setFLimit(String(b.limit));
+    setFRuleType(b.type);
+    setFReleaseRule(b.releaseRule);
+
+    if (b.type === "PERCENT") {
+      setFPercent(String(b.value));
+      setFFixedAmount("");
+    } else {
+      setFFixedAmount(String(b.value));
+      setFPercent("");
+    }
+
     setOpen(true);
   }
 
@@ -115,28 +213,53 @@ export default function BudgetsPage() {
     setMode("add");
     setEditingId(null);
     setFCategory(category);
-    setFLimit("");
+    setFRuleType("PERCENT");
+    setFPercent("");
+    setFFixedAmount("");
+    setFReleaseRule("LINEAR");
     setOpen(true);
   }
 
   function saveBudget(e: React.FormEvent) {
     e.preventDefault();
 
-    const limit = Number(fLimit);
-    if (!Number.isFinite(limit) || limit <= 0) {
-      alert("Enter a budget amount greater than 0.");
-      return;
+    const existingForCat = budgets.find((b) => b.month === selectedMonth && b.category === fCategory);
+
+    // parse rule value
+    let value: number = NaN;
+
+    if (fRuleType === "PERCENT") {
+      value = safeNumber(fPercent);
+      if (!Number.isFinite(value) || value <= 0) {
+        alert("Enter a percent greater than 0 (e.g., 12.5).");
+        return;
+      }
+    } else {
+      value = safeNumber(fFixedAmount);
+      if (!Number.isFinite(value) || value <= 0) {
+        alert("Enter a fixed amount greater than 0.");
+        return;
+      }
     }
 
-    const existingForCat = budgets.find((b) => b.month === selectedMonth && b.category === fCategory);
+    // If FIXED, you probably want NONE pacing by default (but allow user to choose)
+    const releaseRule: ReleaseRule = fReleaseRule;
 
     if (mode === "add") {
       if (existingForCat) {
-        alert(`You already have a budget for "${fCategory}" in this month. Edit it instead.`);
+        alert(`You already have a budget rule for "${fCategory}" in this month. Edit it instead.`);
         return;
       }
 
-      const b: Budget = { id: crypto.randomUUID(), month: selectedMonth, category: fCategory, limit };
+      const b: Budget = {
+        id: crypto.randomUUID(),
+        month: selectedMonth,
+        category: fCategory,
+        type: fRuleType,
+        value,
+        releaseRule,
+      };
+
       setBudgets((prev) => [b, ...prev]);
       setOpen(false);
       return;
@@ -144,25 +267,78 @@ export default function BudgetsPage() {
 
     if (!editingId) return;
 
-    setBudgets((prev) => prev.map((b) => (b.id === editingId ? { ...b, category: fCategory, limit } : b)));
+    setBudgets((prev) =>
+      prev.map((b) =>
+        b.id === editingId
+          ? {
+              ...b,
+              category: fCategory,
+              type: fRuleType,
+              value,
+              releaseRule,
+            }
+          : b
+      )
+    );
+
     setOpen(false);
   }
 
   function deleteBudget(b: Budget) {
-    const ok = confirm(`Delete budget?\n\n${b.category} • ${b.month} • ${b.limit}`);
+    const ok = confirm(`Delete budget rule?\n\n${b.category} • ${b.month}`);
     if (!ok) return;
     setBudgets((prev) => prev.filter((x) => x.id !== b.id));
   }
 
+  // Planned income input (per month)
+  function onChangePlannedIncome(v: string) {
+    const n = Number(v);
+    setPlannedIncomeByMonth((prev) => ({
+      ...prev,
+      [selectedMonth]: Number.isFinite(n) && n >= 0 ? n : 0,
+    }));
+  }
+
   return (
     <div className="space-y-6">
-      <BudgetsHeader
-        months={months}
-        selectedMonth={selectedMonth}
-        onMonthChange={setSelectedMonth}
-        onAddBudget={openAdd}
-      />
+      <BudgetsHeader months={months} selectedMonth={selectedMonth} onMonthChange={setSelectedMonth} onAddBudget={openAdd} />
 
+      {/* NEW: income controls */}
+      <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <div>
+            <p className="text-sm font-medium text-slate-700">Planned income (month)</p>
+            <input
+              value={String(plannedIncome)}
+              onChange={(e) => onChangePlannedIncome(e.target.value)}
+              inputMode="decimal"
+              placeholder="e.g., 4000"
+              className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
+            />
+            <p className="mt-2 text-xs text-slate-500">Used to compute “Planned” budgets from % rules.</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-slate-700">Income received (to-date)</p>
+            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-900">
+              {incomeToDate.toLocaleString("en-CA", { style: "currency", currency: "CAD" })}
+            </div>
+            <p className="mt-2 text-xs text-slate-500">Sum of income transactions in the selected month.</p>
+          </div>
+
+          <div>
+            <p className="text-sm font-medium text-slate-700">Pacing status</p>
+            <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">
+              Available budgets update automatically as income comes in.
+            </div>
+            <p className="mt-2 text-xs text-slate-500">
+              Main bar is “% used of to-date available”. Secondary label is “% used of full plan”.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* Keep existing summary card — but it now represents total AVAILABLE (to-date) */}
       <BudgetsSummary totalBudget={totals.totalBudget} totalSpent={totals.totalSpent} remaining={totals.remaining} />
 
       <BudgetsTable
@@ -179,10 +355,13 @@ export default function BudgetsPage() {
           <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-900">Unbudgeted spending</h2>
-              <p className="text-sm text-slate-600">Categories with spending this month but no budget set.</p>
+              <p className="text-sm text-slate-600">Categories with spending this month but no budget rule set.</p>
             </div>
             <div className="text-sm font-medium text-slate-700">
-              Total: <span className="font-semibold text-slate-900">{unbudgeted.total.toLocaleString("en-CA", { style: "currency", currency: "CAD" })}</span>
+              Total:{" "}
+              <span className="font-semibold text-slate-900">
+                {unbudgeted.total.toLocaleString("en-CA", { style: "currency", currency: "CAD" })}
+              </span>
             </div>
           </div>
 
@@ -208,7 +387,7 @@ export default function BudgetsPage() {
                           onClick={() => onSetBudget(x.category)}
                           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-900 hover:bg-slate-50"
                         >
-                          Set budget
+                          Set rule
                         </button>
                       </div>
                     </td>
@@ -220,16 +399,22 @@ export default function BudgetsPage() {
         </section>
       )}
 
-
+      {/* Updated modal props */}
       <BudgetModal
         open={open}
         mode={mode}
         month={selectedMonth}
         categories={categories.length ? categories : ["Groceries"]}
         category={fCategory}
-        limit={fLimit}
         onChangeCategory={setFCategory}
-        onChangeLimit={setFLimit}
+        ruleType={fRuleType}
+        onChangeRuleType={setFRuleType}
+        percent={fPercent}
+        onChangePercent={setFPercent}
+        fixedAmount={fFixedAmount}
+        onChangeFixedAmount={setFFixedAmount}
+        releaseRule={fReleaseRule}
+        onChangeReleaseRule={setFReleaseRule}
         onClose={closeModal}
         onSave={saveBudget}
       />

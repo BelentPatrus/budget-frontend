@@ -11,7 +11,11 @@ export const seedTxs: Tx[] = [
 ];
 
 export const seedBudgets: Budget[] = [
-  { id: "b1", month: "2025-12", category: "Groceries", limit: 500 },
-  { id: "b2", month: "2025-12", category: "Dining", limit: 200 },
-  { id: "b3", month: "2025-12", category: "Gas", limit: 250 },
+  // Percent-based paced budgets (your “week 1 can’t spend full month” rule)
+  { id: "b1", month: "2025-12", category: "Groceries", type: "PERCENT", value: 12.5, releaseRule: "LINEAR" },
+  { id: "b2", month: "2025-12", category: "Dining", type: "PERCENT", value: 5, releaseRule: "LINEAR" },
+  { id: "b3", month: "2025-12", category: "Gas", type: "PERCENT", value: 6.25, releaseRule: "LINEAR" },
+
+  // Example fixed bill (not paced)
+  // { id: "b4", month: "2025-12", category: "Subscriptions", type: "FIXED", value: 40, releaseRule: "NONE" },
 ];
