@@ -32,8 +32,8 @@ export default function Navbar() {
       <Link href="/budgets" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
         Budgets
       </Link>
-      <Link href="/settings" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
-        Settings
+      <Link href="/SummaryAccounts" className="rounded-lg px-3 py-2 text-sm text-slate-700 hover:bg-slate-100">
+        Summary Of Accounts
       </Link>
 
       <button

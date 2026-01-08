@@ -25,3 +25,7 @@ export type CreateBucket = {
   name: string;
   balance?: number; // default 0
 };
+
+export function money(n: number) {
+  return new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" }).format(n || 0);
+}

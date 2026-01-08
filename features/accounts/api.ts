@@ -1,3 +1,5 @@
+import { Bucket } from "./types";
+
 // features/accounts/api.ts
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
 
@@ -33,8 +35,8 @@ export async function addAccount(payload: any) {
   return readJson<any>(res);
 }
 
-export async function addBucket(accountId: string, payload: any) {
-  const res = await fetch(`${API_BASE}/bank-accounts/${accountId}/buckets`, {
+export async function addBucket(payload: Bucket) {
+  const res = await fetch(`${API_BASE}/bucket`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
