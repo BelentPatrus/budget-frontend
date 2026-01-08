@@ -87,6 +87,12 @@ export default function TransactionsPage() {
   }, []);
 
   // dropdown data
+
+  const bucketNames = useMemo(
+    () => settings.buckets.map((b) => b.name),
+    [settings.buckets]
+  );
+
   const categories = useMemo(() => {
     const set = new Set(txs.map((t) => t.bucket));
     return ["All", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
@@ -238,17 +244,17 @@ export default function TransactionsPage() {
   }) {
 
     const payload: CreateTx = {
-        id: "",
-        date: row.date,
-        description: row.description,
-        bucket: row.bucket,
-        account: row.account,
-        amount: row.amount,
-        incomeOrExpense: row.amount >= 0 ? "INCOME" : "EXPENSE",
-      };
+      id: "",
+      date: row.date,
+      description: row.description,
+      bucket: row.bucket,
+      account: row.account,
+      amount: row.amount,
+      incomeOrExpense: row.amount >= 0 ? "INCOME" : "EXPENSE",
+    };
 
 
-    
+
 
     // OPTION A (fastest): reuse your existing addTransaction endpoint
     // Assumes your backend accepts bucket/account by NAME (like you were doing Default bucketName)
@@ -345,11 +351,12 @@ export default function TransactionsPage() {
 
       <TransactionsTable rows={filtered} onEdit={openEdit} onDelete={onDelete} />
 
+
       <TransactionModal
         open={modalOpen}
         mode={mode}
         form={form}
-        categories={settings.buckets.length ? settings.buckets : categories.filter((c) => c !== "All")}
+        categories={bucketNames.length ? bucketNames : categories.filter((c) => c !== "All")}
         accounts={settings.bankAccounts.length ? settings.bankAccounts : accounts.filter((a) => a !== "All")}
         onChange={setForm}
         onClose={closeModal}
@@ -360,7 +367,7 @@ export default function TransactionsPage() {
         open={importOpen}
         onClose={() => setImportOpen(false)}
         preview={importPreview}
-        buckets={settings.buckets}
+        buckets={bucketNames}
         accounts={accounts}
         onCommitRow={commitImportedRow}
       />

@@ -60,8 +60,6 @@ export type CreateTx = {
   incomeOrExpense: string;
 };
 
-export type Bucket = {
-  name: string;
-}
+
 
 

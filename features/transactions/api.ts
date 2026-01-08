@@ -1,8 +1,8 @@
 import type { Tx } from "./types";
-import { Bucket, CreateTx } from "./utils";
+import { CreateTx } from "./utils";
+import type { Bucket } from "@/features/universal/types";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
 
 function toTx(t: any): Tx {
   return {
@@ -15,11 +15,11 @@ function toTx(t: any): Tx {
   };
 }
 
-function toBucket(t: any): Bucket {
-  return {
-    name: String(t.name)
-  };
-}
+// function toBucket(t: any): Bucket {
+//   return {
+//     name: String(t.name)
+//   };
+// }
 
 export async function fetchTransactions(): Promise<Tx[]> {
   const res = await fetch(`${API_BASE}/transactions`, {
@@ -44,26 +44,25 @@ export async function fetchTransactions(): Promise<Tx[]> {
   return arr.map(toTx);
 }
 
-export async function deleteTransaction(id: string){
+export async function deleteTransaction(id: string) {
   const res = await fetch(`${API_BASE}/transaction/${id}`, {
     method: "DELETE",
     credentials: "include",
   });
-  if (!res.ok){
+  if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || `Failed to delete (HTTP ${res.status})`);
   }
 }
 
-
-export async function addTransaction(transaction: CreateTx){
+export async function addTransaction(transaction: CreateTx) {
   const res = await fetch(`${API_BASE}/transaction`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(transaction),
   });
-  if (!res.ok){
+  if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(text || `Failed to ADD (HTTP ${res.status})`);
   }
@@ -71,25 +70,43 @@ export async function addTransaction(transaction: CreateTx){
   return saved as Tx;
 }
 
-
 function toName(x: any): string {
   if (typeof x === "string") return x.trim();
   if (x && typeof x === "object") return String(x.name ?? "").trim();
   return "";
 }
 
-export async function loadBuckets(): Promise<string[]> {
+export async function loadBuckets(): Promise<Bucket[]> {
   const res = await fetch(`${API_BASE}/buckets`, {
     credentials: "include",
     cache: "no-store",
   });
 
   if (res.status === 401) return [];
-  if (!res.ok) throw new Error(`Failed (${res.status}): ${await res.text().catch(() => "")}`);
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(text || `Failed (${res.status})`);
+  }
 
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
-  return arr.map(toName).filter(Boolean);
+
+  return arr
+    .map((x: any): Bucket | null => {
+      const name = String(x?.name ?? "").trim();
+      if (!name) return null;
+
+      // supports either a string or nested object
+      const bankAccount =
+        typeof x?.bankAccount === "string"
+          ? x.bankAccount
+          : String(x?.bankAccount?.name ?? "").trim();
+
+      if (!bankAccount) return null;
+
+      return { name, bankAccount };
+    })
+    .filter((b): b is Bucket => Boolean(b));
 }
 
 export async function loadBankAccounts(): Promise<string[]> {
@@ -99,7 +116,10 @@ export async function loadBankAccounts(): Promise<string[]> {
   });
 
   if (res.status === 401) return [];
-  if (!res.ok) throw new Error(`Failed (${res.status}): ${await res.text().catch(() => "")}`);
+  if (!res.ok)
+    throw new Error(
+      `Failed (${res.status}): ${await res.text().catch(() => "")}`
+    );
 
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
@@ -124,5 +144,3 @@ export async function uploadTransactions(file: File) {
   // backend may return parsed rows or summary
   return res.json();
 }
-
-
