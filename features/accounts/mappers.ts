@@ -18,5 +18,6 @@ export function toBucket(b: any): Bucket {
     name: String(b?.name ?? b?.bucketName ?? "(Unnamed bucket)"),
     balance: Number(b?.balance ?? 0),
     bankAccountId: bankAccountId != null ? String(bankAccountId) : "",
+    bankAccount: String(b?.bankAccount?.name ?? b?.bank_account?.name ?? ""),
   };
 }

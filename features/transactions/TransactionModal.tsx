@@ -1,5 +1,6 @@
 "use client";
 
+import { BankAccount } from "../accounts/types";
 import type { FormState, ModalMode } from "./types";
 
 export function TransactionModal(props: {
@@ -7,12 +8,12 @@ export function TransactionModal(props: {
   mode: ModalMode;
   form: FormState;
   categories: string[];
-  accounts: string[];
+  bankAccounts: BankAccount[];
   onChange: (next: FormState) => void;
   onClose: () => void;
   onSave: (e: React.FormEvent) => void;
 }) {
-  const { open, mode, form, categories, accounts, onChange, onClose, onSave } = props;
+  const { open, mode, form, categories, bankAccounts, onChange, onClose, onSave } = props;
   if (!open) return null;
 
   return (
@@ -101,8 +102,8 @@ export function TransactionModal(props: {
                 onChange={(e) => onChange({ ...form, account: e.target.value })}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 outline-none focus:border-slate-300 focus:ring-4 focus:ring-slate-100"
               >
-                {accounts.map((a) => (
-                  <option key={a} value={a}>{a}</option>
+                {bankAccounts.map((a) => (
+                  <option key={a.name} value={a.name}>{a.name}</option>
                 ))}
               </select>
             </div>

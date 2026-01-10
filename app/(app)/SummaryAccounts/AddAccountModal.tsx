@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal } from "./Modal";
+import { Modal } from "../../../features/universal/Modal";
 import type { CreateAccount, CreditOrDebit } from "@/features/accounts/types";
 
 export function AddAccountModal(props: { onClose: () => void; onCreate: (payload: CreateAccount) => Promise<void> | void }) {

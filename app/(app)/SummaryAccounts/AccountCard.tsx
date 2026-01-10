@@ -38,9 +38,30 @@ export function AccountCard(props: {
 
   // DEBIT card: full buckets UI
   const bucketsTotal = useMemo(
-    () => buckets.reduce((s, b) => s + (b.balance || 0), 0),
+    () => buckets.reduce((s, b) => s + (Number(b.balance) || 0), 0),
     [buckets]
   );
+
+  const unallocated = useMemo(() => {
+    const diff = (Number(account.balance) || 0) - bucketsTotal;
+    // Only show if positive (account has more than buckets total)
+    return diff > 0 ? diff : 0;
+  }, [account.balance, bucketsTotal]);
+
+  const bucketsForDisplay = useMemo(() => {
+    if (unallocated <= 0) return buckets;
+
+    // fake row for UI only
+    const fake: Bucket = {
+      id: "__UNALLOCATED__", // unique stable key for React
+      name: "Unallocated",
+      balance: unallocated,
+      // include other required Bucket fields here if your type needs them
+      // e.g. bankAccountId: account.id
+    } as Bucket;
+
+    return [...buckets, fake];
+  }, [buckets, unallocated]);
 
   return (
     <div className="rounded-2xl border bg-white shadow-sm">
@@ -75,7 +96,7 @@ export function AccountCard(props: {
       </div>
 
       <div className="p-4">
-        {buckets.length === 0 ? (
+        {bucketsForDisplay.length === 0 ? (
           <div className="text-sm text-gray-500">No buckets yet.</div>
         ) : (
           <table className="w-full text-sm">
@@ -86,14 +107,26 @@ export function AccountCard(props: {
               </tr>
             </thead>
             <tbody>
-              {buckets.map((b) => (
-                <tr key={b.id} className="border-b last:border-b-0">
-                  <td className="py-2">{b.name}</td>
-                  <td className="py-2 text-right font-medium">
-                    {money(b.balance)}
-                  </td>
-                </tr>
-              ))}
+              {bucketsForDisplay.map((b) => {
+                const isUnallocatedRow = b.id === "__UNALLOCATED__";
+
+                return (
+                  <tr
+                    key={b.id}
+                    className="border-b last:border-b-0"
+                  >
+                    <td className="py-2">
+                      {b.name}
+                      {isUnallocatedRow && (
+                        <span className="ml-2 text-xs text-gray-500">(auto)</span>
+                      )}
+                    </td>
+                    <td className="py-2 text-right font-medium">
+                      {money(b.balance)}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}

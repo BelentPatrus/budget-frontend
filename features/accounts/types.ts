@@ -13,6 +13,7 @@ export type Bucket = {
   name: string;
   balance: number;
   bankAccountId: string;
+  bankAccount: string;
 };
 
 export type CreateAccount = {

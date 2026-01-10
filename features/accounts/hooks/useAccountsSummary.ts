@@ -66,6 +66,7 @@ export function useAccountsSummary() {
         bankAccountId: accountId,
         name: payload.name,
         balance: Number(payload.balance) || 0,
+        bankAccount: "",
       })
     );
 

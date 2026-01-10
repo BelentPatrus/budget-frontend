@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Modal } from "./Modal";
+import { Modal } from "../../../features/universal/Modal";
 import type { CreateBucket } from "@/features/accounts/types";
 
 export function AddBucketModal(props: {

@@ -1,6 +1,7 @@
+import { BankAccount } from "../accounts/types";
 import type { Tx } from "./types";
 import { CreateTx } from "./utils";
-import type { Bucket } from "@/features/universal/types";
+import type { Bucket } from "@/features/accounts/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE ?? "http://localhost:8080";
 
@@ -8,8 +9,8 @@ function toTx(t: any): Tx {
   return {
     id: String(t.id),
     date: String(t.date),
-    description: t.merchant ?? t.description ?? "(No merchant)",
-    bucket: t.bucket?.name ?? t.category ?? "(No category)",
+    description: t.merchant ?? t.description ?? "No Description",
+    bucket: t.bucket?.name ?? t.category ?? "Unallocated",
     account: t.bankAccount?.name ?? t.account ?? "(No account)",
     amount: Number(t.amount ?? 0),
   };
@@ -89,27 +90,26 @@ export async function loadBuckets(): Promise<Bucket[]> {
   }
 
   const data = await res.json();
-  const arr = Array.isArray(data) ? data : [];
+
+  // ✅ handle backend returning either a single object OR an array
+  const arr = Array.isArray(data) ? data : data ? [data] : [];
 
   return arr
     .map((x: any): Bucket | null => {
+      const id = String(x?.id ?? "").trim();
       const name = String(x?.name ?? "").trim();
-      if (!name) return null;
+      const balance = Number(x?.balance ?? 0);
+      const bankAccountId = String(x?.bankAccountId ?? "").trim();
+      const bankAccount = String(x?.bankAccount ?? "").trim();
 
-      // supports either a string or nested object
-      const bankAccount =
-        typeof x?.bankAccount === "string"
-          ? x.bankAccount
-          : String(x?.bankAccount?.name ?? "").trim();
-
-      if (!bankAccount) return null;
-
-      return { name, bankAccount };
+      if (!id || !name || !bankAccountId) return null;
+      return { id, name, balance, bankAccountId, bankAccount };
     })
     .filter((b): b is Bucket => Boolean(b));
 }
 
-export async function loadBankAccounts(): Promise<string[]> {
+
+export async function loadBankAccounts(): Promise<BankAccount[]> {
   const res = await fetch(`${API_BASE}/bankaccounts`, {
     credentials: "include",
     cache: "no-store",
@@ -123,7 +123,7 @@ export async function loadBankAccounts(): Promise<string[]> {
 
   const data = await res.json();
   const arr = Array.isArray(data) ? data : [];
-  return arr.map(toName).filter(Boolean);
+  return arr;
 }
 
 export async function uploadTransactions(file: File) {
