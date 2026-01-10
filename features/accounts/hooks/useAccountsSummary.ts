@@ -2,56 +2,75 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { addAccount, addBucket, fetchAccounts, fetchBuckets } from "../api";
-import type { BankAccount, Bucket, CreateAccount, CreateBucket } from "../types";
+import type {
+  BankAccount,
+  Bucket,
+  CreateAccount,
+  CreateBucket,
+} from "../types";
 import { toAccount, toBucket } from "../mappers";
 
 export function useAccountsSummary() {
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
-  const [bucketsByAccount, setBucketsByAccount] = useState<Record<string, Bucket[]>>({});
+  const [bucketsByAccount, setBucketsByAccount] = useState<
+    Record<string, Bucket[]>
+  >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+  let cancelled = false;
+
+  (async () => {
+    if (cancelled) return;
+    await loadAccounts();
+  })();
+
+  return () => {
+    cancelled = true;
+  };
+}, []);
+
+  const loadAccounts = async () => {
     let cancelled = false;
 
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
+    try {
+      setLoading(true);
+      setError(null);
 
-        const raw = await fetchAccounts();
-        const accs = (Array.isArray(raw) ? raw : []).map(toAccount).filter((a) => a.id);
+      const raw = await fetchAccounts();
+      const accs = (Array.isArray(raw) ? raw : [])
+        .map(toAccount)
+        .filter((a) => a.id);
 
-        if (cancelled) return;
-        setAccounts(accs);
+      if (cancelled) return;
+      setAccounts(accs);
 
-        const entries = await Promise.all(
-          accs.map(async (a) => {
-            try {
-              const rawBuckets = await fetchBuckets(a.id);
-              const buckets = (Array.isArray(rawBuckets) ? rawBuckets : []).map(toBucket);
-              return [a.id, buckets] as const;
-            } catch {
-              return [a.id, [] as Bucket[]] as const;
-            }
-          })
-        );
+      const entries = await Promise.all(
+        accs.map(async (a) => {
+          try {
+            const rawBuckets = await fetchBuckets(a.id);
+            const buckets = (Array.isArray(rawBuckets) ? rawBuckets : []).map(
+              toBucket
+            );
+            return [a.id, buckets] as const;
+          } catch {
+            return [a.id, [] as Bucket[]] as const;
+          }
+        })
+      );
 
-        if (!cancelled) setBucketsByAccount(Object.fromEntries(entries));
-      } catch (e: any) {
-        if (!cancelled) setError(e?.message ?? "Failed to load accounts");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+      if (!cancelled) setBucketsByAccount(Object.fromEntries(entries));
+    } catch (e: any) {
+      if (!cancelled) setError(e?.message ?? "Failed to load accounts");
+    } finally {
+      if (!cancelled) setLoading(false);
+    }
+  };
 
   async function createAccount(payload: CreateAccount) {
     const created = toAccount(await addAccount(payload));
+    await loadAccounts(); // 🔁 refresh
     if (!created.id) return;
     setAccounts((prev) => [created, ...prev]);
     setBucketsByAccount((prev) => ({ ...prev, [created.id]: [] }));
@@ -72,7 +91,9 @@ export function useAccountsSummary() {
 
     setBucketsByAccount((prev) => ({
       ...prev,
-      [accountId]: created.id ? [created, ...(prev[accountId] ?? [])] : (prev[accountId] ?? []),
+      [accountId]: created.id
+        ? [created, ...(prev[accountId] ?? [])]
+        : prev[accountId] ?? [],
     }));
   }
 
