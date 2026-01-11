@@ -35,6 +35,24 @@ export async function addAccount(payload: any) {
   return readJson<any>(res);
 }
 
+export async function deleteAccount(id: string) {
+  const res = await fetch(`${API_BASE}/bankaccount/${id}`, {
+    method: "DELETE",
+    credentials: "include",
+  });
+  if (!res.ok) {
+    let message = "Unable to delete account";
+    try {
+      const body = await res.json();
+      message = body.message ?? message;
+    } catch {}
+
+    throw new Error(message);
+  }
+}
+
+
+
 export async function addBucket(payload: Bucket) {
   const res = await fetch(`${API_BASE}/bucket`, {
     method: "POST",

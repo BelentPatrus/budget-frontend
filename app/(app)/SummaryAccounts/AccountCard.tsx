@@ -6,8 +6,9 @@ export function AccountCard(props: {
   account: BankAccount;
   buckets: Bucket[];
   onAddBucket: () => void;
+ onEditAccount: (account: BankAccount) => void;
 }) {
-  const { account, buckets, onAddBucket } = props;
+  const { account, buckets, onAddBucket, onEditAccount  } = props;
 
   const isDebit = account.creditOrDebit === "DEBIT";
 
@@ -86,13 +87,20 @@ export function AccountCard(props: {
             </span>
           </div>
         </div>
-
-        <button
-          onClick={onAddBucket}
-          className="rounded-xl px-3 py-2 border hover:bg-gray-50"
-        >
-          + Add bucket
-        </button>
+        <div>
+          <button
+             onClick={() => onEditAccount(account)}
+            className="rounded-xl px-3 py-2 border hover:bg-gray-50 pr-4 mr-2"
+          >
+            Edit
+          </button>
+          <button
+            onClick={onAddBucket}
+            className="rounded-xl px-3 py-2 border hover:bg-gray-50"
+          >
+            + Add bucket
+          </button>
+        </div>
       </div>
 
       <div className="p-4">

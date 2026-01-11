@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
-import { money } from "@/features/accounts/types";
+import { useMemo, useState } from "react";
+import { money, type BankAccount } from "@/features/accounts/types";
 import { useAccountsSummary } from "@/features/accounts/hooks/useAccountsSummary";
 import { AccountCard } from "./AccountCard";
 import { AddAccountModal } from "./AddAccountModal";
 import { AddBucketModal } from "./AddBucketModal";
+import { EditAccountModal } from "./EditAccountModal";
 
 export default function SettingsAccountsSummaryPage() {
   const {
@@ -16,10 +17,29 @@ export default function SettingsAccountsSummaryPage() {
     totalAccountsBalance,
     createAccount,
     createBucket,
+    deleteAccountHook, // <-- assume your hook exposes this (or wire your api here)
   } = useAccountsSummary();
 
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [addBucketForAccountId, setAddBucketForAccountId] = useState<string | null>(null);
+
+  const [editAccountOpen, setEditAccountOpen] = useState(false);
+  const [selectedAccountId, setSelectedAccountId] = useState<string | null>(null);
+
+  const selectedAccount: BankAccount | null = useMemo(() => {
+    if (!selectedAccountId) return null;
+    return accounts.find((a) => a.id === selectedAccountId) ?? null;
+  }, [accounts, selectedAccountId]);
+
+  function openEditModal(account: BankAccount) {
+    setSelectedAccountId(account.id);
+    setEditAccountOpen(true);
+  }
+
+  function closeEditModal() {
+    setEditAccountOpen(false);
+    setSelectedAccountId(null);
+  }
 
   if (loading) return <div className="p-6">Loading…</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
@@ -54,6 +74,7 @@ export default function SettingsAccountsSummaryPage() {
               account={a}
               buckets={bucketsByAccount[a.id] ?? []}
               onAddBucket={() => setAddBucketForAccountId(a.id)}
+              onEditAccount={openEditModal}
             />
           ))
         )}
@@ -79,6 +100,16 @@ export default function SettingsAccountsSummaryPage() {
           }}
         />
       )}
+
+      <EditAccountModal
+        open={editAccountOpen}
+        account={selectedAccount}
+        onClose={closeEditModal}
+        onDelete={async (accountId) => {
+          await deleteAccountHook(accountId); // or call your api + local state update
+          closeEditModal();
+        }}
+      />
     </div>
   );
 }

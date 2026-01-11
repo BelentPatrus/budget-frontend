@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { addAccount, addBucket, fetchAccounts, fetchBuckets } from "../api";
+import { addAccount, addBucket, fetchAccounts, fetchBuckets, deleteAccount } from "../api";
 import type {
   BankAccount,
   Bucket,
@@ -89,12 +89,20 @@ export function useAccountsSummary() {
       })
     );
 
+  
+
     setBucketsByAccount((prev) => ({
       ...prev,
       [accountId]: created.id
         ? [created, ...(prev[accountId] ?? [])]
         : prev[accountId] ?? [],
     }));
+  }
+
+  async function deleteAccountHook(accountId: string) {
+    await deleteAccount(accountId);
+    await loadAccounts(); // 🔁 refresh
+    
   }
 
   const totalAccountsBalance = useMemo(
@@ -110,5 +118,6 @@ export function useAccountsSummary() {
     totalAccountsBalance,
     createAccount,
     createBucket,
+    deleteAccountHook,
   };
 }
