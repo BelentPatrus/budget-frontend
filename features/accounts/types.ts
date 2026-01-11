@@ -6,6 +6,7 @@ export type BankAccount = {
   name: string;
   creditOrDebit: CreditOrDebit;
   balance: number;
+  status: "ACTIVE" | "ARCHIVED";
 };
 
 export type Bucket = {

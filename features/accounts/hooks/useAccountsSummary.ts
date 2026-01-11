@@ -44,7 +44,7 @@ export function useAccountsSummary() {
         .filter((a) => a.id);
 
       if (cancelled) return;
-      setAccounts(accs);
+      setAccounts(accs.filter((a) => a.status === "ACTIVE"));
 
       const entries = await Promise.all(
         accs.map(async (a) => {

@@ -7,6 +7,7 @@ export function toAccount(a: any): BankAccount {
     name: String(a?.name ?? a?.accountName ?? "(Unnamed account)"),
     creditOrDebit: (a?.creditOrDebit ?? a?.credit_or_debit ?? "DEBIT") as CreditOrDebit,
     balance: Number(a?.balance ?? 0),
+    status: (a?.status ?? "ACTIVE") as "ACTIVE" | "ARCHIVED",
   };
 }
 
