@@ -49,7 +49,7 @@ export type TxModalSubmit =
       fromAccountId: string;
       toAccountId: string;
       amount: number; // positive
-      reduceFromBucketId?: string | "UNALLOCATED" | null; // only if from is debit
+      reduceFromBucketId: string | "UNALLOCATED" ; // only if from is debit
     };
 
 export function TransactionModalV2(props: {
@@ -244,7 +244,7 @@ export function TransactionModalV2(props: {
       fromAccountId: String(value.fromAccountId!),
       toAccountId: String(value.toAccountId!),
       amount: amountNum,
-      reduceFromBucketId: fromIsDebit ? (value.reduceFromBucketId ?? "UNALLOCATED") : null,
+      reduceFromBucketId: fromIsDebit ? ((value.bucketId ?? "UNALLOCATED") as any) : null,
     });
   }
 

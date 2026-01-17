@@ -207,7 +207,7 @@ export default function TransactionsPage() {
         bucket: payload.bucketId == "UNALLOCATED" ? "-1" : payload.bucketId,
         account: acc.name,
         amount: payload.amount, // positive
-        incomeOrExpense: "INCOME",
+        transactionType: "INCOME",
       });
       return;
     }
@@ -224,7 +224,7 @@ export default function TransactionsPage() {
         bucket: payload.bucketId == "UNALLOCATED" ? "-1" : payload.bucketId,
         account: acc.name,
         amount: -Math.abs(payload.amount), // store negative
-        incomeOrExpense: "EXPENSE",
+        transactionType: "EXPENSE",
       });
       return;
     }
@@ -245,20 +245,20 @@ export default function TransactionsPage() {
         id: "",
         date: payload.date,
         description: desc,
-        bucket: "Transfer",
+        bucket: payload.reduceFromBucketId == "UNALLOCATED" ? "-1" : payload.reduceFromBucketId,
         account: from.name,
         amount: -Math.abs(payload.amount),
-        incomeOrExpense: "TRANSFER",
+        transactionType: "TRANSFER",
       });
 
       await createOne({
         id: "",
         date: payload.date,
         description: desc,
-        bucket: "Transfer",
+       bucket: payload.reduceFromBucketId == "UNALLOCATED" ? "-1" : payload.reduceFromBucketId,
         account: to.name,
         amount: Math.abs(payload.amount),
-        incomeOrExpense: "TRANSFER",
+        transactionType: "TRANSFER",
       });
 
       return;
@@ -275,7 +275,7 @@ export default function TransactionsPage() {
       bucket: row.bucket,
       account: row.account,
       amount: row.amount,
-      incomeOrExpense: row.amount >= 0 ? "INCOME" : "EXPENSE",
+      transactionType: row.amount >= 0 ? "INCOME" : "EXPENSE",
     };
 
     await addTransaction(payload);

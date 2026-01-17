@@ -57,7 +57,7 @@ export type CreateTx = {
   bucket: string;
   account: string;
   amount: number;
-  incomeOrExpense: string;
+  transactionType: string;
 };
 
 
