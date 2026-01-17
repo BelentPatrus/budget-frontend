@@ -15,7 +15,7 @@ export type BudgetRow = {
 };
 
 export type CreateBudgetPayload = {
-  budgetPeriodId: number;
+  periodId: number;
   type: BudgetType;
   name: string;
   planned: number;

@@ -72,6 +72,7 @@ export function BudgetsPage() {
     (async () => {
       try {
         const data = await fetchBuckets();
+        console.log("Data buckets:" + data);
         if (!cancelled) setBuckets(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("Failed to load buckets", e);
@@ -139,7 +140,7 @@ export function BudgetsPage() {
       setError(null);
 
       const created = await createBudget({
-        budgetPeriodId: selectedPeriodId,
+        periodId: selectedPeriodId,
         type: newType,
         name,
         planned,
