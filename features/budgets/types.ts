@@ -1,46 +1,29 @@
-export type Tx = {
-  id: string;
-  date: string; // YYYY-MM-DD
-  category: string;
+export type BudgetType = "EXPENSE" | "BUCKET";
 
-  /**
-   * negative = expense
-   * positive = income
-   */
-  amount: number;
+export type Bucket = {
+  id: string;
+  name: string;
 };
 
-export type BudgetRuleType = "PERCENT" | "FIXED";
-
-/**
- * Keep this small for now. You can extend later to:
- * - "SCHEDULED" (unlock more by a due date)
- * - "FRONT_LOADED" (unlock extra early)
- */
-export type ReleaseRule = "LINEAR" | "NONE";
-
-/**
- * Budget is no longer "a monthly limit".
- * It's a rule for that category in a given month.
- */
-export type Budget = {
+export type BudgetRow = {
   id: string;
-  month: string; // YYYY-MM
-  category: string;
-
-  type: BudgetRuleType;
-
-  /**
-   * If type === "PERCENT": percent of income (e.g. 12.5 for 12.5%)
-   * If type === "FIXED": fixed monthly amount in dollars
-   */
-  value: number;
-
-  /**
-   * LINEAR = paced by income received so far (your “week 1 can’t spend month total” rule)
-   * NONE   = full amount available immediately (useful for rent/subscriptions)
-   */
-  releaseRule: ReleaseRule;
+  name: string;
+  type: string; // dollars
+  bucketName: string;  // dollars
+  planned: number;
+  actual: number;
 };
 
-export type BudgetModalMode = "add" | "edit";
+export type CreateBudgetPayload = {
+  budgetPeriodId: number;
+  type: BudgetType;
+  name: string;
+  planned: number;
+  bucketId?: string | null;
+};
+
+export type BudgetPeriod = {
+  id: number;
+  startDate: string;
+  endDate: string;
+};
