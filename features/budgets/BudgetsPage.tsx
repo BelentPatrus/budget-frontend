@@ -43,6 +43,14 @@ export function BudgetsPage() {
   const [newName, setNewName] = useState("");
   const [newPlanned, setNewPlanned] = useState("");
 
+  // bucket lookup
+  const bucketById = useMemo(() => {
+    return new Map(buckets.map((b) => [String(b.id), b]));
+  }, [buckets]);
+
+  const isBucketBudget = newType === "BUCKET";
+  const derivedName = isBucketBudget ? bucketById.get(String(newBucketId))?.name ?? "" : newName;
+
   // Load budget periods (once)
   useEffect(() => {
     let cancelled = false;
@@ -72,7 +80,6 @@ export function BudgetsPage() {
     (async () => {
       try {
         const data = await fetchBuckets();
-        console.log("Data buckets:" + data);
         if (!cancelled) setBuckets(Array.isArray(data) ? data : []);
       } catch (e) {
         console.error("Failed to load buckets", e);
@@ -109,6 +116,12 @@ export function BudgetsPage() {
     };
   }, [selectedPeriodId]);
 
+  // If user switches to BUCKET mode, clear name (we’ll derive it)
+  useEffect(() => {
+    if (newType === "BUCKET") setNewName("");
+    if (newType === "EXPENSE") setNewBucketId("");
+  }, [newType]);
+
   // Derived totals (from loaded rows)
   const computed = useMemo(() => {
     const plannedTotal = rows.reduce((s, r) => s + (r.planned ?? 0), 0);
@@ -130,11 +143,11 @@ export function BudgetsPage() {
     if (!selectedPeriodId) return setError("Please select a budget period.");
 
     const planned = safeNumber(newPlanned.trim() || "0");
-    const name = newName.trim();
+    const name = (derivedName ?? "").trim();
 
-    if (!name) return setError("Name is required.");
+    if (!name) return setError(isBucketBudget ? "Please select a bucket." : "Name is required.");
     if (Number.isNaN(planned) || planned < 0) return setError("Planned must be ≥ 0.");
-    if (newType === "BUCKET" && !newBucketId) return setError("Please select a bucket.");
+    if (isBucketBudget && !newBucketId) return setError("Please select a bucket.");
 
     try {
       setError(null);
@@ -142,9 +155,9 @@ export function BudgetsPage() {
       const created = await createBudget({
         periodId: selectedPeriodId,
         type: newType,
-        name,
+        name, // IMPORTANT: derived bucket name when BUCKET
         planned,
-        bucketId: newType === "BUCKET" ? newBucketId : null,
+        bucketId: isBucketBudget ? newBucketId : null,
       });
 
       setRows((prev) => [created, ...prev]);
@@ -210,11 +223,7 @@ export function BudgetsPage() {
               <select
                 className="rounded-xl border px-3 py-2 text-sm"
                 value={newType}
-                onChange={(e) => {
-                  const t = e.target.value as BudgetType;
-                  setNewType(t);
-                  if (t === "EXPENSE") setNewBucketId("");
-                }}
+                onChange={(e) => setNewType(e.target.value as BudgetType)}
               >
                 <option value="EXPENSE">Expense</option>
                 <option value="BUCKET">Bucket</option>
@@ -224,23 +233,24 @@ export function BudgetsPage() {
                 className="rounded-xl border px-3 py-2 text-sm disabled:bg-gray-50"
                 value={newBucketId}
                 onChange={(e) => setNewBucketId(e.target.value)}
-                disabled={newType !== "BUCKET"}
+                disabled={!isBucketBudget}
               >
                 <option value="" disabled>
-                  {newType === "BUCKET" ? "Select bucket" : "Bucket (disabled)"}
+                  {isBucketBudget ? "Select bucket" : "Bucket (disabled)"}
                 </option>
                 {buckets.map((b) => (
-                  <option key={b.id} value={b.id}>
+                  <option key={b.id} value={String(b.id)}>
                     {b.name}
                   </option>
                 ))}
               </select>
 
               <input
-                className="rounded-xl border px-3 py-2 text-sm"
-                placeholder="Name (e.g., Rent)"
-                value={newName}
+                className="rounded-xl border px-3 py-2 text-sm disabled:bg-gray-50"
+                placeholder={isBucketBudget ? "Auto (bucket name)" : "Name (e.g., Rent)"}
+                value={derivedName}
                 onChange={(e) => setNewName(e.target.value)}
+                disabled={isBucketBudget}
               />
 
               <input
@@ -276,11 +286,7 @@ export function BudgetsPage() {
                   <select
                     className="rounded-xl border px-3 py-2 text-sm"
                     value={newType}
-                    onChange={(e) => {
-                      const t = e.target.value as BudgetType;
-                      setNewType(t);
-                      if (t === "EXPENSE") setNewBucketId("");
-                    }}
+                    onChange={(e) => setNewType(e.target.value as BudgetType)}
                   >
                     <option value="EXPENSE">Expense</option>
                     <option value="BUCKET">Bucket</option>
@@ -290,23 +296,24 @@ export function BudgetsPage() {
                     className="rounded-xl border px-3 py-2 text-sm disabled:bg-gray-50"
                     value={newBucketId}
                     onChange={(e) => setNewBucketId(e.target.value)}
-                    disabled={newType !== "BUCKET"}
+                    disabled={!isBucketBudget}
                   >
                     <option value="" disabled>
-                      {newType === "BUCKET" ? "Select bucket" : "Bucket (disabled)"}
+                      {isBucketBudget ? "Select bucket" : "Bucket (disabled)"}
                     </option>
                     {buckets.map((b) => (
-                      <option key={b.id} value={b.id}>
+                      <option key={b.id} value={String(b.id)}>
                         {b.name}
                       </option>
                     ))}
                   </select>
 
                   <input
-                    className="w-48 rounded-xl border px-3 py-2 text-sm"
-                    placeholder="Name"
-                    value={newName}
+                    className="w-48 rounded-xl border px-3 py-2 text-sm disabled:bg-gray-50"
+                    placeholder={isBucketBudget ? "Auto (bucket name)" : "Name"}
+                    value={derivedName}
                     onChange={(e) => setNewName(e.target.value)}
+                    disabled={isBucketBudget}
                   />
 
                   <input
@@ -343,33 +350,40 @@ export function BudgetsPage() {
                 </thead>
 
                 <tbody>
-                  {computed.rows.map((r: any) => (
-                    <tr key={r.id} className="border-t">
-                      <td className="px-6 py-3 font-medium">{r.name ?? r.category}</td>
-                      <td className="px-6 py-3">{r.type ?? (r.bucketId ? "BUCKET" : "EXPENSE")}</td>
+                  {computed.rows.map((r: any) => {
+                    const rowType: BudgetType = (r.type ??
+                      (r.bucketId ? "BUCKET" : "EXPENSE")) as BudgetType;
 
-                      <td className="px-6 py-3">
-                        <input
-                          className="w-32 rounded-lg border px-2 py-1"
-                          defaultValue={String(r.planned)}
-                          onBlur={(e) => onEditPlanned(r.id, e.target.value)}
-                        />
-                      </td>
+                    const rowBucketName =
+                      r.bucket?.name ??
+                      r.bucketName ??
+                      (r.bucketId ? bucketById.get(String(r.bucketId))?.name : undefined);
 
-                      <td className="px-6 py-3">{money(r.actual ?? 0)}</td>
-                      <td className="px-6 py-3">{money(r.remaining ?? 0)}</td>
-                      <td className="px-6 py-3">{pct(r.toward ?? 0)}</td>
+                    const displayName = rowType === "BUCKET" ? rowBucketName ?? r.name : r.name;
 
-                      <td className="px-6 py-3 text-right">
-                        <button
-                          onClick={() => onDelete(r.id)}
-                          className="rounded-lg border px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                        >
-                          Delete
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                    return (
+                      <tr key={r.id} className="border-t">
+                        <td className="px-6 py-3 font-medium">{displayName ?? r.category}</td>
+                        <td className="px-6 py-3">{rowType}</td>
+
+                        <td className="px-6 py-3">{money(r.planned ?? 0)}</td>
+
+
+                        <td className="px-6 py-3">{money(r.actual ?? 0)}</td>
+                        <td className="px-6 py-3">{money(r.remaining ?? 0)}</td>
+                        <td className="px-6 py-3">{pct(r.toward ?? 0)}</td>
+
+                        <td className="px-6 py-3 text-right">
+                          <button
+                            onClick={() => onDelete(r.id)}
+                            className="rounded-lg border px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
 
                 <tfoot>

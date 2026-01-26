@@ -15,6 +15,8 @@ export default function SettingsAccountsSummaryPage() {
     loading,
     error,
     totalAccountsBalance,
+    TotalDebitBalance,
+    TotalCreditBalance,
     createAccount,
     createBucket,
     deleteAccountHook, // <-- assume your hook exposes this (or wire your api here)
@@ -50,10 +52,19 @@ export default function SettingsAccountsSummaryPage() {
         <div>
           <h1 className="text-2xl font-semibold">Accounts</h1>
           <p className="text-sm text-gray-500">Your accounts and the buckets inside each account.</p>
-          <div className="mt-2 text-sm">
-            <span className="text-gray-500">Total balances: </span>
-            <span className="font-medium">{money(totalAccountsBalance)}</span>
+
+          <div className="grid grid-cols-[max-content_max-content] gap-x-1">
+            <span>Total Debit:</span>
+            <span className="text-right font-mono tabular-nums">{money(TotalDebitBalance)}</span>
+
+            <span>Total Credit:</span>
+            <span className="text-right font-mono tabular-nums">{money(TotalCreditBalance)}</span>
+
+            <span>Net Balance:</span>
+            <span className="text-right font-mono tabular-nums">{money(totalAccountsBalance)}</span>
           </div>
+
+
         </div>
 
         <button

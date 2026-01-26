@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { BankAccount, Bucket } from "@/features/accounts/types";
 
 export type TxKind = "EXPENSE" | "INCOME" | "TRANSFER";
@@ -30,17 +30,17 @@ export type TxModalSubmit =
       kind: "INCOME";
       date: string;
       description: string;
-      accountId: string; // must be debit
-      amount: number; // positive
-      bucketId: string | "UNALLOCATED"; // REQUIRED, can be UNALLOCATED
+      accountId: string;
+      amount: number;
+      bucketId: string | "UNALLOCATED";
     }
   | {
       kind: "EXPENSE";
       date: string;
       description: string;
-      accountId: string; // debit or credit
-      amount: number; // positive
-      bucketId: string | "UNALLOCATED";
+      accountId: string;
+      amount: number;
+      bucketId: string | "UNALLOCATED" | null;
     }
   | {
       kind: "TRANSFER";
@@ -48,8 +48,8 @@ export type TxModalSubmit =
       description: string;
       fromAccountId: string;
       toAccountId: string;
-      amount: number; // positive
-      reduceFromBucketId: string | "UNALLOCATED" ; // only if from is debit
+      amount: number;
+      reduceFromBucketId: string | "UNALLOCATED" | null;
     };
 
 export function TransactionModalV2(props: {
@@ -75,9 +75,16 @@ export function TransactionModalV2(props: {
 
   const selectedAccount = value.accountId ? byId.get(String(value.accountId)) : undefined;
   const selectedIsDebit = selectedAccount?.creditOrDebit === "DEBIT";
+  const selectedIsCredit = selectedAccount?.creditOrDebit === "CREDIT";
 
   const fromAccount = value.fromAccountId ? byId.get(String(value.fromAccountId)) : undefined;
   const fromIsDebit = fromAccount?.creditOrDebit === "DEBIT";
+
+  const bucketAllowed = value.kind === "INCOME" || (value.kind === "EXPENSE" && selectedIsDebit);
+
+  // remember last selections per kind (this fixes your “toggle back” issue)
+  const lastExpenseRef = useRef<{ accountId?: string; bucketId?: TxModalValue["bucketId"] }>({});
+  const lastIncomeRef = useRef<{ accountId?: string; bucketId?: TxModalValue["bucketId"] }>({});
 
   // Filter buckets by accountId (string-safe)
   const bucketsForAccount = useMemo(() => {
@@ -92,49 +99,52 @@ export function TransactionModalV2(props: {
     return buckets.filter((b) => String(b.bankAccountId) === String(acctId));
   }, [buckets, value.fromAccountId]);
 
-  // ✅ Auto-initialize missing ids when modal opens / kind changes
+  // init defaults on open
   useEffect(() => {
     if (!open) return;
+
+    // ensure some kind default account exists
+    if (value.kind === "EXPENSE") {
+      if (!value.accountId) {
+        const fallback = bankAccounts[0]?.id ? String(bankAccounts[0].id) : "";
+        if (!fallback) return;
+
+        const acc = byId.get(fallback);
+        const isDebit = acc?.creditOrDebit === "DEBIT";
+
+        onChange({
+          ...value,
+          accountId: fallback,
+          bucketId: isDebit ? "UNALLOCATED" : null,
+        });
+      }
+      return;
+    }
 
     if (value.kind === "INCOME") {
       const current = value.accountId ? byId.get(String(value.accountId)) : undefined;
       const needsDebit = !current || current.creditOrDebit !== "DEBIT";
-      const defaultDebit = debitAccounts[0]?.id ? String(debitAccounts[0].id) : "";
+      const fallback = debitAccounts[0]?.id ? String(debitAccounts[0].id) : "";
 
-      if (needsDebit && defaultDebit) {
-        onChange({
-          ...value,
-          accountId: defaultDebit,
-          bucketId: value.bucketId ?? "UNALLOCATED",
-        });
+      if (needsDebit && fallback) {
+        onChange({ ...value, accountId: fallback, bucketId: "UNALLOCATED" });
         return;
       }
 
-      if (!value.bucketId) {
-        onChange({ ...value, bucketId: "UNALLOCATED" });
-      }
+      if (!value.bucketId) onChange({ ...value, bucketId: "UNALLOCATED" });
       return;
     }
 
-    if (value.kind === "EXPENSE") {
-      const defaultAcc = bankAccounts[0]?.id ? String(bankAccounts[0].id) : "";
-      if (!value.accountId && defaultAcc) {
-        const acc = byId.get(defaultAcc);
-        const isDebit = acc?.creditOrDebit === "DEBIT";
-        onChange({
-          ...value,
-          accountId: defaultAcc,
-          bucketId: isDebit ? (value.bucketId ?? "UNALLOCATED") : null,
-        });
-      }
-      return;
-    }
-
-    // TRANSFER
+    // TRANSFER: leave your existing logic mostly alone
     if (value.kind === "TRANSFER") {
       const defaultFrom =
         value.fromAccountId ??
-        (debitAccounts[0]?.id ? String(debitAccounts[0].id) : bankAccounts[0]?.id ? String(bankAccounts[0].id) : "");
+        (debitAccounts[0]?.id
+          ? String(debitAccounts[0].id)
+          : bankAccounts[0]?.id
+          ? String(bankAccounts[0].id)
+          : "");
+
       if (!defaultFrom) return;
 
       const defaultTo =
@@ -149,34 +159,28 @@ export function TransactionModalV2(props: {
       if (!value.fromAccountId || !value.toAccountId) {
         onChange({
           ...value,
-          fromAccountId: String(defaultFrom),
+          fromAccountId: defaultFrom,
           toAccountId: defaultTo,
-          reduceFromBucketId: isDebit ? (value.reduceFromBucketId ?? "UNALLOCATED") : null,
+          reduceFromBucketId: isDebit ? "UNALLOCATED" : null,
         });
-        return;
-      }
-
-      // If from account flips to CREDIT, clear reduceFromBucketId
-      if (!isDebit && value.reduceFromBucketId) {
-        onChange({ ...value, reduceFromBucketId: null });
       }
     }
-  }, [
-    open,
-    value.kind,
-    value.accountId,
-    value.bucketId,
-    value.fromAccountId,
-    value.toAccountId,
-    value.reduceFromBucketId,
-    bankAccounts,
-    debitAccounts,
-    byId,
-    onChange,
-    value,
-  ]);
+  }, [open]); // intentionally only on open
 
-  // ✅ Pure validation only (no side effects)
+  // enforce bucket rules when account/kind changes
+  useEffect(() => {
+    if (!open) return;
+
+    if (value.kind === "EXPENSE" && selectedIsCredit) {
+      if (value.bucketId !== null) onChange({ ...value, bucketId: null });
+      return;
+    }
+
+    if (bucketAllowed) {
+      if (!value.bucketId) onChange({ ...value, bucketId: "UNALLOCATED" });
+    }
+  }, [open, value.kind, value.accountId, selectedIsCredit, bucketAllowed]);
+
   const canSubmit = (() => {
     if (!value.date) return false;
     if (!Number.isFinite(amountNum) || amountNum <= 0) return false;
@@ -185,7 +189,6 @@ export function TransactionModalV2(props: {
       if (!value.accountId) return false;
       const acc = byId.get(String(value.accountId));
       if (!acc || acc.creditOrDebit !== "DEBIT") return false;
-      // income must have bucket (can be UNALLOCATED)
       return !!value.bucketId;
     }
 
@@ -193,11 +196,9 @@ export function TransactionModalV2(props: {
       if (!value.accountId) return false;
       const acc = byId.get(String(value.accountId));
       if (!acc) return false;
-      // bucket rules enforced on submit
       return true;
     }
 
-    // TRANSFER
     if (!value.fromAccountId || !value.toAccountId) return false;
     if (String(value.fromAccountId) === String(value.toAccountId)) return false;
     if (fromIsDebit) return !!(value.reduceFromBucketId ?? "UNALLOCATED");
@@ -213,7 +214,7 @@ export function TransactionModalV2(props: {
       await onSubmit({
         kind: "INCOME",
         date: value.date,
-        description: description,
+        description,
         accountId: String(value.accountId!),
         amount: amountNum,
         bucketId: (value.bucketId ?? "UNALLOCATED") as any,
@@ -236,7 +237,6 @@ export function TransactionModalV2(props: {
       return;
     }
 
-    // TRANSFER
     await onSubmit({
       kind: "TRANSFER",
       date: value.date,
@@ -244,16 +244,26 @@ export function TransactionModalV2(props: {
       fromAccountId: String(value.fromAccountId!),
       toAccountId: String(value.toAccountId!),
       amount: amountNum,
-      reduceFromBucketId: fromIsDebit ? ((value.bucketId ?? "UNALLOCATED") as any) : null,
+      reduceFromBucketId: fromIsDebit ? ((value.reduceFromBucketId ?? "UNALLOCATED") as any) : null,
     });
   }
 
   function setKind(nextKind: TxKind) {
+    // remember current selection before leaving a tab
+    if (value.kind === "EXPENSE") {
+      lastExpenseRef.current = { accountId: value.accountId, bucketId: value.bucketId };
+    }
+    if (value.kind === "INCOME") {
+      lastIncomeRef.current = { accountId: value.accountId, bucketId: value.bucketId };
+    }
+
     if (nextKind === "INCOME") {
-      const current = value.accountId ? byId.get(String(value.accountId)) : undefined;
+      const remembered = lastIncomeRef.current.accountId;
+      const rememberedAcc = remembered ? byId.get(String(remembered)) : undefined;
+
       const defaultDebit =
-        current?.creditOrDebit === "DEBIT"
-          ? String(value.accountId!)
+        rememberedAcc?.creditOrDebit === "DEBIT"
+          ? String(remembered!)
           : debitAccounts[0]?.id
           ? String(debitAccounts[0].id)
           : "";
@@ -262,7 +272,7 @@ export function TransactionModalV2(props: {
         ...value,
         kind: "INCOME",
         accountId: defaultDebit,
-        bucketId: value.bucketId ?? "UNALLOCATED",
+        bucketId: "UNALLOCATED",
         fromAccountId: undefined,
         toAccountId: undefined,
         reduceFromBucketId: null,
@@ -271,15 +281,19 @@ export function TransactionModalV2(props: {
     }
 
     if (nextKind === "EXPENSE") {
-      const defaultAcc = value.accountId ?? (bankAccounts[0]?.id ? String(bankAccounts[0].id) : "");
-      const acc = defaultAcc ? byId.get(String(defaultAcc)) : undefined;
+      // restore what user had selected on EXPENSE (this is the missing piece)
+      const rememberedAccId =
+        lastExpenseRef.current.accountId ??
+        (bankAccounts[0]?.id ? String(bankAccounts[0].id) : "");
+
+      const acc = rememberedAccId ? byId.get(String(rememberedAccId)) : undefined;
       const isDebit = acc?.creditOrDebit === "DEBIT";
 
       onChange({
         ...value,
         kind: "EXPENSE",
-        accountId: defaultAcc,
-        bucketId: isDebit ? (value.bucketId ?? "UNALLOCATED") : null,
+        accountId: rememberedAccId,
+        bucketId: isDebit ? (lastExpenseRef.current.bucketId ?? "UNALLOCATED") : null,
         fromAccountId: undefined,
         toAccountId: undefined,
         reduceFromBucketId: null,
@@ -290,7 +304,12 @@ export function TransactionModalV2(props: {
     // TRANSFER
     const defaultFrom =
       value.fromAccountId ??
-      (debitAccounts[0]?.id ? String(debitAccounts[0].id) : bankAccounts[0]?.id ? String(bankAccounts[0].id) : "");
+      (debitAccounts[0]?.id
+        ? String(debitAccounts[0].id)
+        : bankAccounts[0]?.id
+        ? String(bankAccounts[0].id)
+        : "");
+
     const defaultTo =
       value.toAccountId && String(value.toAccountId) !== String(defaultFrom)
         ? String(value.toAccountId)
@@ -463,12 +482,16 @@ export function TransactionModalV2(props: {
             </label>
 
             {/* Bucket */}
-            {value.kind === "INCOME" || (value.kind === "EXPENSE" && selectedIsDebit) ? (
+            {bucketAllowed ? (
               <label className="block text-sm">
-                <div className="text-gray-600 mb-1">{value.kind === "INCOME" ? "Put into bucket" : "Spend from bucket"}</div>
+                <div className="text-gray-600 mb-1">
+                  {value.kind === "INCOME" ? "Put into bucket" : "Spend from bucket"}
+                </div>
                 <select
                   value={(value.bucketId ?? "UNALLOCATED") as any}
-                  onChange={(e) => onChange({ ...value, bucketId: (e.target.value as any) || "UNALLOCATED" })}
+                  onChange={(e) =>
+                    onChange({ ...value, bucketId: (e.target.value as any) || "UNALLOCATED" })
+                  }
                   className="w-full rounded-xl border px-3 py-2"
                 >
                   <option value="UNALLOCATED">Unallocated</option>
@@ -480,13 +503,17 @@ export function TransactionModalV2(props: {
                 </select>
 
                 {value.kind === "EXPENSE" && (
-                  <div className="mt-1 text-xs text-gray-500">Choose Unallocated to spend from cash not assigned.</div>
+                  <div className="mt-1 text-xs text-gray-500">
+                    Choose Unallocated to spend from cash not assigned.
+                  </div>
                 )}
               </label>
             ) : (
               <div className="text-sm text-gray-500 flex items-end">
                 {value.kind === "EXPENSE" ? (
-                  <div className="rounded-xl border px-3 py-2 w-full bg-gray-50">Buckets don’t apply to credit accounts.</div>
+                  <div className="rounded-xl border px-3 py-2 w-full bg-gray-50">
+                    Buckets don’t apply to credit accounts.
+                  </div>
                 ) : null}
               </div>
             )}
@@ -503,12 +530,16 @@ export function TransactionModalV2(props: {
             inputMode="decimal"
             placeholder="e.g., 45.99"
           />
-          <div className="mt-1 text-xs text-gray-500">Stored as: {value.kind === "EXPENSE" ? "negative (expense)" : "positive"}</div>
+          <div className="mt-1 text-xs text-gray-500">
+            Stored as: {value.kind === "EXPENSE" ? "negative (expense)" : "positive"}
+          </div>
         </label>
 
         {/* Actions */}
         <div className="flex justify-end gap-2 pt-2">
-          <button onClick={onClose} className="rounded-xl px-4 py-2 border">Cancel</button>
+          <button onClick={onClose} className="rounded-xl px-4 py-2 border">
+            Cancel
+          </button>
           <button
             disabled={!canSubmit}
             onClick={handleSubmit}
@@ -543,7 +574,9 @@ function Modal(props: { title: string; onClose: () => void; children: React.Reac
       <div className="w-full max-w-lg rounded-2xl bg-white shadow-lg">
         <div className="flex items-center justify-between border-b p-4">
           <div className="font-semibold">{props.title}</div>
-          <button onClick={props.onClose} className="rounded-lg px-2 py-1 hover:bg-gray-100">✕</button>
+          <button onClick={props.onClose} className="rounded-lg px-2 py-1 hover:bg-gray-100">
+            ✕
+          </button>
         </div>
         <div className="p-4">{props.children}</div>
       </div>

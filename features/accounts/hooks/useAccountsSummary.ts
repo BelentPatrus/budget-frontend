@@ -106,7 +106,29 @@ export function useAccountsSummary() {
   }
 
   const totalAccountsBalance = useMemo(
-    () => accounts.reduce((s, a) => s + (a.balance || 0), 0),
+    () => 
+      accounts.reduce((s, a) => {
+         const balance = a.balance ?? 0;
+         return s + (a.creditOrDebit === "DEBIT" ? balance : -balance);
+       }, 0),
+    [accounts]
+  );
+
+  const TotalDebitBalance = useMemo(
+        () => 
+      accounts.reduce((s, a) => {
+         const balance = a.balance ?? 0;
+         return s + (a.creditOrDebit === "DEBIT" ? balance : 0);
+       }, 0),
+    [accounts]
+  );
+
+    const TotalCreditBalance = useMemo(
+        () => 
+      accounts.reduce((s, a) => {
+         const balance = a.balance ?? 0;
+         return s + (a.creditOrDebit === "CREDIT" ? balance : 0);
+       }, 0),
     [accounts]
   );
 
@@ -116,6 +138,8 @@ export function useAccountsSummary() {
     loading,
     error,
     totalAccountsBalance,
+    TotalDebitBalance,
+    TotalCreditBalance,
     createAccount,
     createBucket,
     deleteAccountHook,
